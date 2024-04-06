@@ -883,5 +883,18 @@ main(int argc, char *argv[])
 
 	output = generate_program();
 
+	FILE *outfile = fopen(outfname, "wb");
+	if (outfile == NULL) {
+		fprintf(stderr, "unable to open output file '%s': %s\n",
+		    outfname, strerror(errno));
+		exit(1);
+	}
+	if (fwrite(output, current_pc, 1, outfile) != 1) {
+		fprintf(stderr, "unable to write output file '%s'\n",
+		    outfname);
+		exit(1);
+	}
+	fclose(outfile);
+
 	exit(0);
 }
