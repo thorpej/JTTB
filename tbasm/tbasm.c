@@ -802,7 +802,65 @@ usage(void)
 {
 	fprintf(stderr, "usage: %s [-o output.bin] input.asm\n",
 	    myprogname);
+	fprintf(stderr, "usage: %s -H [output.h] input.asm\n",
+	    myprogname);
 	exit(1);
+}
+
+static bool Hflag;
+static char *infname;
+
+static const char *
+outfile_suffix(void)
+{
+	if (Hflag) {
+		return ".h";
+	}
+	return ".bin";
+}
+
+static bool
+output_header(FILE *outfile, const char *output)
+{
+	unsigned int i;
+
+	fprintf(outfile,
+"/*\n"
+" * DO NOT EDIT.  THIS FILE WAS AUTOMATICALLY GENERATED FROM\n"
+" *     %s\n"
+" */\n"
+"\n"
+"static const char tbvm_program[] = {\n", basename(infname));
+
+	for (i = 0; i < current_pc; i++) {
+		const char *lead, *follow;
+
+		if ((i & 7) == 0) {
+			lead = "\t";
+		} else {
+			lead = "";
+		}
+
+		if (i + 1 == current_pc || ((i + 1) & 7) == 0) {
+			follow = "\n";
+		} else {
+			follow = " ";
+		}
+		fprintf(outfile, "%s0x%02x,%s", lead,
+		    (unsigned char)output[i], follow);
+	}
+
+	fprintf(outfile, "};\n");
+	return true;
+}
+
+static bool
+output_binary(FILE *outfile, const char *output)
+{
+	if (fwrite(output, current_pc, 1, outfile) != 1) {
+		return false;
+	}
+	return true;
 }
 
 int
@@ -810,19 +868,32 @@ main(int argc, char *argv[])
 {
 	char *input, *output;
 	char *outfname = NULL, *cp;
-	char *infname;
 	off_t infsize;
+	bool oflag = false;
 	int ch;
 
 	myprogname = strdup(basename(argv[0]));
 
-	while ((ch = getopt(argc, argv, "do:")) != -1) {
+	while ((ch = getopt(argc, argv, "dH::o:")) != -1) {
 		switch (ch) {
 		case 'd':
 			debug = true;
 			break;
 
+		case 'H':
+			if (oflag) {
+				usage();
+			}
+			Hflag = true;
+			if (optarg != NULL) {
+				outfname = strdup(optarg);
+			}
+			break;
+
 		case 'o':
+			if (Hflag) {
+				usage();
+			}
 			outfname = strdup(optarg);
 			break;
 
@@ -839,7 +910,8 @@ main(int argc, char *argv[])
 	infname = argv[0];
 
 	if (outfname == NULL) {
-		size_t len = strlen(infname) + sizeof(".bin");
+		const char *suffix = outfile_suffix();
+		size_t len = strlen(infname) + strlen(suffix) + 1;
 		cp = basename(infname);
 		outfname = malloc(len);
 		strcpy(outfname, infname);
@@ -847,7 +919,7 @@ main(int argc, char *argv[])
 		if (cp != NULL) {
 			*cp = '\0';
 		}
-		strcat(outfname, ".bin");
+		strcat(outfname, suffix);
 	}
 
 	FILE *infile = fopen(infname, "r");
@@ -889,12 +961,21 @@ main(int argc, char *argv[])
 		    outfname, strerror(errno));
 		exit(1);
 	}
-	if (fwrite(output, current_pc, 1, outfile) != 1) {
+
+	bool success;
+	if (Hflag) {
+		success = output_header(outfile, output);
+	} else {
+		success = output_binary(outfile, output);
+	}
+
+	fclose(outfile);
+
+	if (! success) {
 		fprintf(stderr, "unable to write output file '%s'\n",
 		    outfname);
 		exit(1);
 	}
-	fclose(outfile);
 
-	exit(0);
+	return 0;
 }
