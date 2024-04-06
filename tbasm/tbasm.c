@@ -700,29 +700,7 @@ parse(const char *input_buffer)
 		}
 	}
 
-	dbg_printf("%s: ending state %d\n", __func__, parser.state);
-	if (parser.opcode) {
-		dbg_printf("%s: (pending opcode: %s)\n", __func__,
-		    parser.opcode->str);
-	}
-
-	/*
-	 * Valid ending states.
-	 */
-	switch (parser.state) {
-	case STATE_GET_STATEMENT:
-	case STATE_REST_OF_LINE:
-	case STATE_COMMENT:
-		/*
-		 * In case the input file ended without a newline, generate
-		 * any final pending instruction.
-		 */
-		gen_insn(&parser);
-		break;
-
-	default:
-		syntax_error(&parser);
-	}
+	assert(parser.state == STATE_GET_STATEMENT);
 
 	if (parser.errors) {
 		fprintf(stderr, "%d error%s parsing input.\n",
