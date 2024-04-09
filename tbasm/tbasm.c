@@ -79,6 +79,17 @@ struct label {
 
 static struct label *labels;
 
+/*
+ * There are two special labels that every TBVM program must have:
+ *
+ *	CO	- the line collector entry point
+ *	XEC	- the statement executor entry point
+ */
+#define	SPECIAL_LABEL_COLLECTOR_NAME	"CO"
+#define	SPECIAL_LABEL_EXECUTOR_NAME	"XEC"
+static struct label *special_label_collector;
+static struct label *special_label_executor;
+
 struct opcode {
 	const char	*str;
 	uint8_t		val;
@@ -412,6 +423,14 @@ gen_label(struct parser * const parser, struct prognode *node)
 	if (node != NULL) {
 		l->addr = node->addr;
 		l->resolved = node->lineno;
+		if (strcmp(l->string, SPECIAL_LABEL_COLLECTOR_NAME) == 0) {
+			assert(special_label_collector == NULL);
+			special_label_collector = l;
+		} else if (strcmp(l->string,
+				  SPECIAL_LABEL_EXECUTOR_NAME) == 0) {
+			assert(special_label_executor == NULL);
+			special_label_executor = l;
+		}
 	}
 
 	return l;
@@ -734,7 +753,32 @@ check_labels(void)
 			rv = false;
 		}
 	}
+	if (special_label_collector == NULL) {
+		fprintf(stderr,
+		    "*** missing required special label \"%s\"\n",
+		    SPECIAL_LABEL_COLLECTOR_NAME);
+	}
+	if (special_label_executor == NULL) {
+		fprintf(stderr,
+		    "*** missing required special label \"%s\"\n",
+		    SPECIAL_LABEL_EXECUTOR_NAME);
+	}
 	return rv;
+}
+
+static char *
+encode_number(char *cp, int num)
+{
+	*cp++ = num & 0xff;
+	return cp;
+}
+
+static char *
+encode_addr(char *cp, int addr)
+{
+	*cp++ = (addr     ) & 0xff;
+	*cp++ = (addr >> 8) & 0xff;
+	return cp;
 }
 
 static char *
@@ -747,7 +791,7 @@ generate_program(void)
 	if (current_pc == 0) {
 		return NULL;
 	}
-	program = malloc(current_pc);
+	program = malloc(current_pc + (OPC_LBL_SIZE * 2));
 
 	for (cp = program, node = program_head; debug && node != NULL;
 	     node = node->next) {
@@ -775,12 +819,10 @@ generate_program(void)
 		}
 		*cp++ = node->opcode->val;
 		if (node->opcode->flags & OPC_F_NUMBER) {
-			*cp++ = node->number & 0xff;
+			cp = encode_number(cp, node->number);
 		} else {
 			if (node->opcode->flags & OPC_F_LABEL) {
-				/* Absolute, for now. */
-				*cp++ = (node->label->addr     ) & 0xff;
-				*cp++ = (node->label->addr >> 8) & 0xff;
+				cp = encode_addr(cp, node->label->addr);
 			}
 			if (node->opcode->flags & OPC_F_STRING) {
 				size_t len = strlen(node->string);
@@ -790,6 +832,14 @@ generate_program(void)
 			}
 		}
 	}
+
+	/* Now copy the 2 special addresses to the end of the program. */
+	assert(special_label_collector != NULL);
+	cp = encode_addr(cp, special_label_collector->addr);
+	assert(special_label_executor != NULL);
+	cp = encode_addr(cp, special_label_executor->addr);
+	current_pc += (OPC_LBL_SIZE * 2);
+
 	printf("program size: %u byte%s\n", current_pc, plural(current_pc));
 
 	return program;
