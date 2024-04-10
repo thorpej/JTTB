@@ -958,6 +958,40 @@ IMPL(INIT)
  */
 IMPL(GETLINE)
 {
+	int ch;
+	bool quoted = false;
+
+	vm->lbuf = vm->direct_lbuf;
+	vm->lbuf_ptr = 0;
+
+	for (;;) {
+		ch = (*vm->io_getchar)(vm->context);
+		if (ch == EOF) {
+			print_crlf(vm);
+			print_string(vm, "INPUT DISCONNECTED. GOODBYE.");
+			print_crlf(vm);
+			vm->vm_run = false;
+			return;
+		}
+		if (ch == END_OF_LINE) {
+			vm->lbuf[vm->lbuf_ptr] = (char)ch;
+			vm->lbuf_ptr = 0;
+			return;
+		}
+		if (vm->lbuf_ptr == SIZE_LBUF - 1) {
+			print_crlf(vm);
+			print_string(vm, "INPUT LINE TOO LONG.");
+			print_crlf(vm);
+			vm->lbuf_ptr = 0;
+			continue;
+		}
+		if (ch == DQUOTE) {
+			quoted ^= true;
+		} else if (!quoted && ch >= 'a' && ch <= 'z') {
+			ch = 'A' + (ch - 'a');
+		}
+		vm->lbuf[vm->lbuf_ptr++] = (char)ch;
+	}
 }
 
 /*
