@@ -919,14 +919,9 @@ IMPL(TSTV)
 	}
 }
 
-/*
- * Test for number. If present, place its value onto the AESTK and
- * continue execution at next suggested location. Otherwise continue at
- * lbl.
- */
-IMPL(TSTN)
+static bool
+parse_number(tbvm *vm, bool advance, int *valp)
 {
-	int label = get_label(vm);
 	int count, val = 0;
 	char c;
 
@@ -940,7 +935,26 @@ IMPL(TSTN)
 		val = (val * 10) + (c - '0');
 	}
 	if (count) {
-		advance_cursor(vm, count);
+		if (advance) {
+			advance_cursor(vm, count);
+		}
+		*valp = val;
+		return true;
+	}
+	return false;
+}
+
+/*
+ * Test for number. If present, place its value onto the AESTK and
+ * continue execution at next suggested location. Otherwise continue at
+ * lbl.
+ */
+IMPL(TSTN)
+{
+	int label = get_label(vm);
+	int val;
+
+	if (parse_number(vm, true, &val)) {
 		aestk_push(vm, val);
 	} else {
 		vm->pc = label;
