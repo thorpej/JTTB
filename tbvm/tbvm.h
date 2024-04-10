@@ -38,4 +38,6 @@ tbvm	*tbvm_alloc(void);
 void	tbvm_exec(tbvm *, const char *, size_t);
 void	tbvm_free(tbvm *);
 
+void	tbvm_break(tbvm *);
+
 #endif /* tbvm_h_included */

@@ -41,6 +41,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include <signal.h>
 
 #include "tbvm.h"
 #include "tbvm_opcodes.h"
@@ -58,6 +59,7 @@
 
 struct tbvm {
 	jmp_buf		vm_abort_env;
+	sig_atomic_t	break_received;
 
 	const char	*vm_prog;
 	size_t		vm_progsize;
@@ -69,8 +71,9 @@ struct tbvm {
 	unsigned int	collector_pc;	/* VM address of collector routine */
 	unsigned int	executor_pc;	/* VM address of executor routine */
 
-	bool		direct;	/* true if in DIRECT mode */
-	int		lineno;	/* current BASIC line number */
+	bool		suppress_prompt;
+	bool		direct;		/* true if in DIRECT mode */
+	int		lineno;		/* current BASIC line number */
 	int		first_line;
 	int		last_line;
 
@@ -424,6 +427,20 @@ init_vm(tbvm *vm)
 	vm->lineno = 0;
 
 	vm->direct = true;
+}
+
+static bool
+check_break(tbvm *vm)
+{
+	if (vm->break_received) {
+		print_crlf(vm);
+		print_string(vm, "BREAK");
+		print_crlf(vm);
+		direct_mode(vm);
+		vm->break_received = 0;
+		return true;
+	}
+	return false;
 }
 
 static void
@@ -966,7 +983,16 @@ IMPL(GETLINE)
 	vm->lbuf = vm->direct_lbuf;
 	vm->lbuf_ptr = 0;
 
+	if (! vm->suppress_prompt) {
+		print_string(vm, "OK");
+		print_crlf(vm);
+	}
+	vm->suppress_prompt = false;
+
 	for (;;) {
+		if (check_break(vm)) {
+			vm->lbuf_ptr = 0;
+		}
 		ch = (*vm->io_getchar)(vm->context);
 		if (ch == EOF) {
 			print_crlf(vm);
@@ -1016,6 +1042,11 @@ IMPL(TSTL)
  */
 IMPL(INSRT)
 {
+	/*
+	 * Suppress the BASIC prompt after inserting a BASIC line
+	 * into the program store.
+	 */
+	vm->suppress_prompt = true;
 }
 
 /*
@@ -1111,6 +1142,7 @@ tbvm_exec(tbvm *vm, const char *prog, size_t progsize)
 	}
 
 	while (vm->vm_run) {
+		check_break(vm);
 		vm->opc = (unsigned char)get_opcode(vm);
 		if (vm->opc > OPC___LAST || opc_impls[vm->opc] == NULL) {
 			vm_abort(vm, "!UNDEFINED VM OPCODE");
@@ -1118,6 +1150,12 @@ tbvm_exec(tbvm *vm, const char *prog, size_t progsize)
 		}
 		(*opc_impls[vm->opc])(vm);
 	}
+}
+
+void
+tbvm_break(tbvm *vm)
+{
+	vm->break_received = 1;
 }
 
 void
