@@ -1043,12 +1043,15 @@ IMPL(GETLINE)
 IMPL(TSTL)
 {
 	int label = get_label(vm);
+	int val;
 
-	skip_whitespace(vm);
-
-	/* XXX */
-
-	vm->pc = label;
+	if (parse_number(vm, false, &val)) {
+		if (val < 1 || val > MAX_LINENO) {
+			basic_line_number_error(vm);
+		}
+	} else {
+		vm->pc = label;
+	}
 }
 
 /*
