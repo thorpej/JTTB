@@ -36,6 +36,7 @@
  * to extend the BASIC interpreter.
  */
 
+#include <assert.h>
 #include <setjmp.h>
 #include <stdbool.h>
 #include <stdlib.h>
@@ -76,6 +77,7 @@ struct tbvm {
 	int		lineno;		/* current BASIC line number */
 	int		first_line;
 	int		last_line;
+	char		*progstore[MAX_LINENO];
 
 	void		*context;
 	int		(*io_getchar)(void *);
@@ -117,8 +119,30 @@ print_string(tbvm *vm, const char *msg)
 	}
 }
 
+static int
+printed_number_width(int num)
+{
+	bool negative_p = false;
+	int width;
+
+	if (num == 0) {
+		return 1;
+	}
+	if (num < 0) {
+		negative_p = true;
+		num = -num;
+	}
+	for (width = 0; num != 0; num /= 10) {
+		width++;
+	}
+	if (negative_p) {
+		width++;
+	}
+	return width;
+}
+
 static void
-print_number(tbvm *vm, int num)
+print_number_justified(tbvm *vm, int num, int width)
 {
 	/*
 	 * Largest integer number is "2147483647", which is 10
@@ -129,19 +153,38 @@ print_number(tbvm *vm, int num)
 	bool negative_p = num < 0;
 	char buf[PRN_BUFSIZE];
 	char *cp = &buf[PRN_BUFSIZE];
+	int digits = 0;
 
 	do {
 		*--cp = '0' + (num % 10);
 		num /= 10;
+		digits++;
 	} while (num != 0);
 
 	if (negative_p) {
 		*--cp = '-';
+		digits++;
+	}
+
+	if (width != 0) {
+		if (width > PRN_BUFSIZE) {
+			width = PRN_BUFSIZE;
+		}
+		while (digits < width) {
+			*--cp = ' ';
+			digits++;
+		}
 	}
 
 	do {
 		(*vm->io_putchar)(vm->context, *cp++);
 	} while (cp != &buf[PRN_BUFSIZE]);
+}
+
+static void
+print_number(tbvm *vm, int num)
+{
+	print_number_justified(vm, num, 0);
 }
 
 static void
@@ -222,11 +265,13 @@ basic_expression_error(tbvm *vm)
 	basic_error(vm, "?EXPRESSION TOO COMPLEX");
 }
 
+#if 0
 static void
 basic_too_many_lines_error(tbvm *vm)
 {
 	basic_error(vm, "?TOO MANY LINES");
 }
+#endif
 
 static void
 basic_division_by_zero_error(tbvm *vm)
@@ -393,23 +438,164 @@ default_putchar(void *v, int c)
 /*********** Program execution helper routines **********/
 
 static void
+skip_whitespace(tbvm *vm)
+{
+	char c;
+
+	for (;;) {
+		c = vm->lbuf[vm->lbuf_ptr];
+		if (c == ' ' || c == '\t') {
+			vm->lbuf_ptr++;
+		} else {
+			return;
+		}
+	}
+}
+
+static void
 progstore_init(tbvm *vm)
 {
-	/* XXX */
+	int i;
+
+	for (i = 0; i < MAX_LINENO; i++) {
+		if (vm->progstore[i] != NULL) {
+			free(vm->progstore[i]);
+			vm->progstore[i] = NULL;
+		}
+	}
+	vm->first_line = vm->last_line = 0;
 }
 
 static char *
 find_line(tbvm *vm, int lineno)
 {
-	/* XXX */
-	return NULL;
+	if (lineno < 1 || lineno > MAX_LINENO) {
+		return NULL;
+	}
+
+	return vm->progstore[lineno - 1];
+}
+
+static void
+update_bookends(tbvm *vm, int lineno, char *cp)
+{
+	if (cp != NULL) {
+		if (vm->first_line < 1 || vm->first_line > lineno) {
+			vm->first_line = lineno;
+		}
+		if (vm->last_line < 1 || vm->last_line < lineno) {
+			vm->last_line = lineno;
+		}
+		assert(vm->first_line > 0);
+		assert(vm->last_line > 0);
+		return;
+	}
+
+	assert(vm->first_line > 0);
+	assert(vm->last_line > 0);
+
+	if (lineno == vm->first_line) {
+		vm->first_line = 0;
+		for (int i = lineno; i <= MAX_LINENO; i++) {
+			if (vm->progstore[i - 1] != NULL) {
+				vm->first_line = i;
+				break;
+			}
+		}
+		if (vm->first_line == 0) {
+			vm->last_line = 0;
+			return;
+		}
+	}
+
+	if (lineno == vm->last_line) {
+		vm->last_line = 0;
+		for (int i = lineno; i >= 1; i--) {
+			if (vm->progstore[i - 1] != NULL) {
+				vm->last_line = i;
+				break;
+			}
+		}
+		assert(vm->last_line != 0);
+	}
+}
+
+static void
+insert_line(tbvm *vm, int lineno)
+{
+	int i = lineno - 1;
+	char *cp;
+	size_t len;
+
+	assert(lineno >= 1 && lineno <= MAX_LINENO);
+	assert(vm->lbuf == vm->direct_lbuf);
+
+	skip_whitespace(vm);
+	for (cp = &vm->lbuf[vm->lbuf_ptr]; *cp != END_OF_LINE; cp++) {
+		/* skip to end of line */
+	}
+	len = cp - &vm->lbuf[vm->lbuf_ptr];
+	if (len == 0) {
+		cp = NULL;		/* delete line */
+	} else {
+		cp = malloc(len + 1);	/* include end-of-line */
+		memcpy(cp, &vm->lbuf[vm->lbuf_ptr], len + 1);
+	}
+
+	if (vm->progstore[i] != NULL) {
+		free(vm->progstore[i]);
+	}
+	vm->progstore[i] = cp;
+	update_bookends(vm, lineno, cp);
+}
+
+static void
+list_program(tbvm *vm)
+{
+	int i, width;
+	char *cp;
+
+	if (vm->first_line == 0) {
+		assert(vm->last_line == 0);
+		return;
+	} else {
+		assert(vm->last_line >= vm->first_line);
+	}
+
+	width = printed_number_width(vm->last_line);
+	for (i = vm->first_line - 1; i < vm->last_line; i++) {
+		if (vm->progstore[i] == NULL) {
+			continue;
+		}
+		print_number_justified(vm, i + 1, width);
+		(*vm->io_putchar)(vm->context, ' ');
+		for (cp = vm->progstore[i]; *cp != END_OF_LINE; cp++) {
+			(*vm->io_putchar)(vm->context, *cp);
+		}
+		print_crlf(vm);
+	}
 }
 
 static int
 next_line(tbvm *vm)
 {
-	/* XXX */
-	return -1;
+	int i, rv = -1;
+
+	if (vm->lineno == 0) {
+		rv = vm->first_line;
+	} else if (vm->last_line > 0) {
+		for (i = vm->lineno + 1; i < vm->last_line; i++) {
+			if (find_line(vm, i) != NULL) {
+				rv = i;
+				break;
+			}
+		}
+	}
+
+	if (rv == 0) {
+		rv = -1;
+	}
+	return rv;
 }
 
 static void
@@ -529,21 +715,6 @@ static int
 get_literal(tbvm *vm)
 {
 	return get_progbyte(vm);
-}
-
-static void
-skip_whitespace(tbvm *vm)
-{
-	char c;
-
-	for (;;) {
-		c = vm->lbuf[vm->lbuf_ptr];
-		if (c == ' ' || c == '\t') {
-			vm->lbuf_ptr++;
-		} else {
-			return;
-		}
-	}
 }
 
 static void
@@ -975,6 +1146,7 @@ IMPL(IND)
  */
 IMPL(LST)
 {
+	list_program(vm);
 }
 
 /*
@@ -1059,6 +1231,14 @@ IMPL(TSTL)
  */
 IMPL(INSRT)
 {
+	int val;
+
+	if (!parse_number(vm, true, &val) ||
+	    val < 1 || val > MAX_LINENO) {
+		basic_line_number_error(vm);
+	}
+	insert_line(vm, val);
+
 	/*
 	 * Suppress the BASIC prompt after inserting a BASIC line
 	 * into the program store.
