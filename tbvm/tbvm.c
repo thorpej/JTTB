@@ -201,13 +201,13 @@ vm_abort(tbvm *vm, const char *msg)
 }
 
 static void
-direct_mode(tbvm *vm)
+direct_mode(tbvm *vm, int ptr)
 {
 	vm->direct = true;
 	vm->pc = vm->collector_pc;
 	vm->lineno = 0;
 	vm->lbuf = vm->direct_lbuf;
-	vm->lbuf_ptr = 0;
+	vm->lbuf_ptr = ptr;
 }
 
 /*********** BASIC error helper routines **********/
@@ -226,7 +226,7 @@ basic_error(tbvm *vm, const char *msg)
 	 * Go back to direct mode and jump to the line collection
 	 * routine.
 	 */
-	direct_mode(vm);
+	direct_mode(vm, 0);
 }
 
 static void
@@ -622,7 +622,7 @@ check_break(tbvm *vm)
 		print_crlf(vm);
 		print_string(vm, "BREAK");
 		print_crlf(vm);
-		direct_mode(vm);
+		direct_mode(vm, 0);
 		vm->break_received = 0;
 		return true;
 	}
@@ -636,7 +636,7 @@ set_line(tbvm *vm, int lineno, int ptr, bool fatal)
 
 	if (lineno == 0) {
 		/* XFER will error this for GOTO / GOSUB. */
-		direct_mode(vm);
+		direct_mode(vm, ptr);
 		return;
 	}
 
@@ -677,7 +677,7 @@ next_statement(tbvm *vm)
 	int line = next_line(vm);
 
 	if (line == -1) {
-		direct_mode(vm);
+		direct_mode(vm, 0);
 	} else {
 		set_line(vm, line, 0, true);
 	}
@@ -993,7 +993,7 @@ IMPL(INNUM)
  */
 IMPL(FIN)
 {
-	direct_mode(vm);
+	direct_mode(vm, 0);
 }
 
 /*
