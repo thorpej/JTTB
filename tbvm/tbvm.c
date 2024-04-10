@@ -523,6 +523,8 @@ skip_whitespace(tbvm *vm)
 		c = vm->lbuf[vm->lbuf_ptr];
 		if (c == ' ' || c == '\t') {
 			vm->lbuf_ptr++;
+		} else {
+			return;
 		}
 	}
 }
@@ -559,12 +561,12 @@ typedef void (*opc_impl_func_t)(tbvm *);
 IMPL(TST)
 {
 	int label = get_label(vm);
-	int count = 0;
+	int count;
 	char line_c, prog_c;
 
 	skip_whitespace(vm);
 
-	for (;;) {
+	for (count = 0;;) {
 		prog_c = get_progbyte(vm);
 		line_c = peek_linebyte(vm, count);
 		if ((prog_c & 0x7f) != line_c) {
@@ -912,7 +914,7 @@ IMPL(TSTN)
 	char c;
 
 	skip_whitespace(vm);
-	for (count = 0;; count++) {
+	for (count = 0;;) {
 		c = peek_linebyte(vm, count);
 		if (c < '0' || c > '9') {
 			break;
