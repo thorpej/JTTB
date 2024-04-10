@@ -852,7 +852,7 @@ usage(void)
 {
 	fprintf(stderr, "usage: %s [-o output.bin] input.asm\n",
 	    myprogname);
-	fprintf(stderr, "usage: %s -H [output.h] input.asm\n",
+	fprintf(stderr, "usage: %s -H[output.h] input.asm\n",
 	    myprogname);
 	exit(1);
 }
