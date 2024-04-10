@@ -1000,6 +1000,13 @@ IMPL(GETLINE)
  */
 IMPL(TSTL)
 {
+	int label = get_label(vm);
+
+	skip_whitespace(vm);
+
+	/* XXX */
+
+	vm->pc = label;
 }
 
 /*
