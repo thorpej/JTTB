@@ -584,7 +584,7 @@ next_line(tbvm *vm)
 	if (vm->lineno == 0) {
 		rv = vm->first_line;
 	} else if (vm->last_line > 0) {
-		for (i = vm->lineno + 1; i < vm->last_line; i++) {
+		for (i = vm->lineno + 1; i <= vm->last_line; i++) {
 			if (find_line(vm, i) != NULL) {
 				rv = i;
 				break;
@@ -676,7 +676,7 @@ next_statement(tbvm *vm)
 {
 	int line = next_line(vm);
 
-	if (line == -1) {
+	if (vm->direct || line == -1) {
 		direct_mode(vm, 0);
 	} else {
 		set_line(vm, line, 0, true);
@@ -1254,6 +1254,24 @@ IMPL(XINIT)
 	vm->aestk_ptr = 0;
 }
 
+/*
+ * Run the stored program.
+ */
+IMPL(RUN)
+{
+	vm->direct = false;
+	vm->lineno = 0;
+	next_statement(vm);
+}
+
+/*
+ * Exit the VM execution loop.
+ */
+IMPL(EXIT)
+{
+	vm->vm_run = false;
+}
+
 #undef IMPL
 
 #define	OPC(x)	[OPC_ ## x] = OPC_ ## x ## _impl
@@ -1292,6 +1310,10 @@ static opc_impl_func_t opc_impls[OPC___COUNT] = {
 	OPC(TSTL),
 	OPC(INSRT),
 	OPC(XINIT),
+
+	/* JTTB additions. */
+	OPC(RUN),
+	OPC(EXIT),
 };
 
 #undef OPC

@@ -11,6 +11,11 @@
 ; Changes / additions to the original Tiny BASIC functionality are
 ; listed here:
 ;
+; ==> The RUN command uses a new RUN VM insn that explicitly changes mode.
+;
+; ==> Added an EXIT command that uses a new EXIT VM insn to cause the
+;     VM to stop running bytecode and return to the driver.
+;
 
 ;
 ; *** Main entry point
@@ -139,7 +144,7 @@ notLIST:
 	;
 	TST	notRUN,'RUN'	; RUN command?
 	DONE			; Yes, end of statement.
-	NXT
+	RUN			; changes from direct mode
 notRUN:
 
 	;
@@ -149,6 +154,14 @@ notRUN:
 	DONE			; End of statement.
 	JMP	START		; Re-initialize VM.
 notCLR:
+
+	;
+	; EXIT
+	;
+	TST	notEXIT,'EXIT'	; EXIT command?
+	DONE			; End of statement.
+	EXIT
+notEXIT:
 
 Serr:	ERR			; Syntax error.
 

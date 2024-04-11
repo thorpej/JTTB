@@ -131,6 +131,10 @@ const struct opcode opcode_tab[] = {
 	{ "INSRT",	OPC_INSRT,	0 },
 	{ "XINIT",	OPC_XINIT,	0 },
 
+	/* JTTB additions */
+	{ "RUN",	OPC_RUN,	0 },
+	{ "EXIT",	OPC_EXIT,	0 },
+
 	{ NULL,		0,		0 },
 };
 
