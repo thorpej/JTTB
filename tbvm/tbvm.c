@@ -994,6 +994,19 @@ IMPL(CMPR)
 }
 
 /*
+ * This is like CMPR, but on no match, CMPRX branches to a VM label
+ * rather than performing NXT.
+ */
+IMPL(CMPRX)
+{
+	int label = get_label(vm);
+
+	if (! compare(vm)) {
+		vm->pc = label;
+	}
+}
+
+/*
  * Push the number num onto the AESTK.
  */
 IMPL(LIT)
@@ -1334,6 +1347,7 @@ static opc_impl_func_t opc_impls[OPC___COUNT] = {
 	/* JTTB additions. */
 	OPC(RUN),
 	OPC(EXIT),
+	OPC(CMPRX),
 };
 
 #undef OPC

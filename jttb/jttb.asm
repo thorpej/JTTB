@@ -98,8 +98,9 @@ notPRINT:
 	CALL	RELOP		; Get relational operation.
 	CALL	EXPR		; Get second expression.
 	TST	Serr,'THEN'	; Check for THEN.
-	CMPR			; Perform comparsion - performs NXT if false.
+	CMPRX	IF1		; Perform comparsion
 	JMP	STMT		; True, perform the statement.
+IF1:	NXT			; Next statement.
 notIF:
 
 	;

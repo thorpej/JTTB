@@ -134,6 +134,7 @@ const struct opcode opcode_tab[] = {
 	/* JTTB additions */
 	{ "RUN",	OPC_RUN,	0 },
 	{ "EXIT",	OPC_EXIT,	0 },
+	{ "CMPRX",	OPC_CMPRX,	OPC_F_LABEL },
 
 	{ NULL,		0,		0 },
 };

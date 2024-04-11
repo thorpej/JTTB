@@ -71,8 +71,9 @@
 #define	OPC_XINIT	32
 #define	OPC_RUN		33	/* JTTB addition */
 #define	OPC_EXIT	34	/* JTTB addition */
+#define	OPC_CMPRX	35	/* JTTB addition */
 
-#define	OPC___LAST	OPC_EXIT
+#define	OPC___LAST	OPC_CMPRX
 #define	OPC___COUNT	(OPC___LAST + 1)
 
 #define	OPC_F_LABEL	0x01
