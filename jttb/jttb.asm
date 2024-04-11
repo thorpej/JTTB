@@ -18,6 +18,8 @@
 ;
 ; ==> Added a REM statement for comments.
 ;
+; ==> Added NEW as an alias for CLEAR.
+;
 
 ;
 ; *** Main entry point
@@ -159,8 +161,10 @@ notRUN:
 	;
 	; CLEAR
 	;
-	TST	notCLR,'CLEAR'	; CLEAR command?
-	DONE			; End of statement.
+	TST	CLR1,'CLEAR'	; CLEAR command?
+	JMP	CLR2
+CLR1:	TST	notCLR,'NEW'	; NEW is a synonym.
+CLR2:	DONE			; End of statement.
 	JMP	START		; Re-initialize VM.
 notCLR:
 
