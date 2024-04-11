@@ -630,7 +630,7 @@ check_break(tbvm *vm)
 }
 
 static void
-set_line(tbvm *vm, int lineno, int ptr, bool fatal)
+set_line_ext(tbvm *vm, int lineno, int ptr, bool fatal, bool restoring)
 {
 	char *lbuf;
 
@@ -668,7 +668,21 @@ set_line(tbvm *vm, int lineno, int ptr, bool fatal)
 	vm->lbuf = lbuf;
 	vm->lbuf_ptr = ptr;
 	vm->lineno = lineno;
-	vm->pc = vm->executor_pc;
+	if (!restoring) {
+		vm->pc = vm->executor_pc;
+	}
+}
+
+static void
+set_line(tbvm *vm, int lineno, int ptr, bool fatal)
+{
+	set_line_ext(vm, lineno, ptr, fatal, false);
+}
+
+static void
+restore_line(tbvm *vm, int lineno, int ptr)
+{
+	set_line_ext(vm, lineno, ptr, true, true);
 }
 
 static void
@@ -911,7 +925,7 @@ IMPL(RSTR)
 	int lineno, ptr;
 
 	if (sbrstk_pop(vm, &lineno, &ptr)) {
-		set_line(vm, lineno, ptr, true);
+		restore_line(vm, lineno, ptr);
 	}
 }
 
