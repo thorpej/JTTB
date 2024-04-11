@@ -38,8 +38,8 @@ CO:	GETLINE			; Write prompt and get line.
 ;
 ; *** Statement executor
 ;
-XEC:	XINIT			; Initialize for a statement.
-STMT:				; XXX Should this == XEC?
+XEC:
+STMT:	XINIT			; Initialize for a statement.
 
 	;
 	; LET var = expression
