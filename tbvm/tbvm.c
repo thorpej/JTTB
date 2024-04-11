@@ -929,13 +929,8 @@ IMPL(RSTR)
 	}
 }
 
-/*
- * Compare AESTK(SP), the top of the stack, with AESTK(SP-2)
- * as per the relations indicated by AESTK(SP-1). Delete all
- * from stack.  If the condition specified did not match, then
- * perform NXT action.
- */
-IMPL(CMPR)
+bool
+compare(tbvm *vm)
 {
 	int val2 = aestk_pop(vm);
 	int rel  = aestk_pop(vm);
@@ -982,7 +977,18 @@ IMPL(CMPR)
 		/* NOTREACHED */
 	}
 
-	if (! result) {
+	return result;
+}
+
+/*
+ * Compare AESTK(SP), the top of the stack, with AESTK(SP-2)
+ * as per the relations indicated by AESTK(SP-1). Delete all
+ * from stack.  If the condition specified did not match, then
+ * perform NXT action.
+ */
+IMPL(CMPR)
+{
+	if (! compare(vm)) {
 		next_statement(vm);
 	}
 }
