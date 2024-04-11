@@ -16,6 +16,8 @@
 ; ==> Added an EXIT command that uses a new EXIT VM insn to cause the
 ;     VM to stop running bytecode and return to the driver.
 ;
+; ==> Added a REM statement for comments.
+;
 
 ;
 ; *** Main entry point
@@ -121,6 +123,13 @@ notINPUT:
 	RSTR			; Restore location.
 	NXT			; Next statement.
 notRTN:
+
+	;
+	; REM <rest of line ignored>
+	;
+	TST	notREM,'REM'	; REM statement?
+	NXT			; Next statement.
+notREM:
 
 	;
 	; END
