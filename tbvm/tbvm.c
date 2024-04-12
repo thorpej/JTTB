@@ -558,9 +558,6 @@ update_bookends(tbvm *vm, int lineno, char *cp)
 		return;
 	}
 
-	assert(vm->first_line > 0);
-	assert(vm->last_line > 0);
-
 	if (lineno == vm->first_line) {
 		vm->first_line = 0;
 		for (int i = lineno; i <= MAX_LINENO; i++) {
