@@ -20,7 +20,7 @@
 ;
 ; ==> Added NEW as an alias for CLEAR.
 ;
-; ==> Added FOR / NEXT loops using new FOR and NXTFOR VM insns.
+; ==> Added FOR / NEXT loops using new FOR, STEP, and NXTFOR VM insns.
 ;
 
 ;
