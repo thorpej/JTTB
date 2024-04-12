@@ -25,6 +25,10 @@
 ; ==> Added exponentiation (^) and modulus (%) to expression evaluation
 ;     (TERM) using new EXP and MOD VM insns.
 ;
+; ==> Added an RND() function using a new RND VM insn.
+;
+; ==> Added an ABS() function using a new ABS VM insn.
+;
 
 ;
 ; *** Main entry point
@@ -234,6 +238,7 @@ Serr:	ERR			; Syntax error.
 ;            ( expression )
 ;
 ; function ::= RND ( expression )
+;              ABS ( expression )
 ;
 ; var ::= A | B | ... | Y | Z
 ;
@@ -302,6 +307,14 @@ FACT:
 	RND
 	RTN
 notRND:
+
+	TST	notABS,'ABS'	; ABS() function?
+	TST	Serr,'('
+	CALL	EXPR		; Get expression.
+	TST	Serr,')'
+	ABS
+	RTN
+notABS:
 
 	TSTV	F0		; Variable?
 	IND			; Yes, get the value.

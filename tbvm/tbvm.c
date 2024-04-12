@@ -1506,6 +1506,17 @@ IMPL(RND)
 	aestk_push(vm, rand() / (RAND_MAX / num + 1));
 }
 
+/*
+ * Take the value at the top of the AESTK and replace it with its
+ * absolute value.
+ */
+IMPL(ABS)
+{
+	int num = aestk_pop(vm);
+
+	aestk_push(vm, abs(num));
+}
+
 #undef IMPL
 
 #define	OPC(x)	[OPC_ ## x] = OPC_ ## x ## _impl
@@ -1555,6 +1566,7 @@ static opc_impl_func_t opc_impls[OPC___COUNT] = {
 	OPC(MOD),
 	OPC(EXP),
 	OPC(RND),
+	OPC(ABS),
 };
 
 #undef OPC
