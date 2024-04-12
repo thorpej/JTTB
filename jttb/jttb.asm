@@ -214,12 +214,30 @@ Serr:	ERR			; Syntax error.
 ;
 ; *** Expression evaluation
 ;
-; expression::= (+ | - | e) term ((+ | -) term)*
-; term::= factor ((* | ^ | / | %) factor)*
-; factor::= var | number | (expression)
-; var::= A | B | C ..., | Y | Z
-; number::= digit digit*
-; digit::= 0 | 1 | 2  | ...  | 8 | 9
+; expression ::= unsignedexpr
+;                + unsignedexpr
+;                - unsignedexpr
+;
+; unsignedexpr ::= term
+;                  term + unsignedexpr
+;                  term - unsignedexpr
+;
+; term ::= factor
+;          factor * term
+;          factor / term
+;          factor ^ term
+;          factor % term
+;
+; factor ::= var
+;            number
+;            ( expression )
+;
+; var ::= A | B | ... | Y | Z
+;
+; number ::= digit
+;            digit number
+;
+; digit ::= 0 | 1 | 2  | ...  | 8 | 9
 ;
 EXPR:	TST	E0,'-'		; Unary -?
 	CALL	TERM		; Yes, get first term.
