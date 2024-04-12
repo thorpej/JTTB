@@ -51,6 +51,7 @@
 #define	SIZE_CSTK	64	/* control stack size */
 #define	SIZE_SBRSTK	64	/* subroutine stack size */
 #define	SIZE_AESTK	64	/* expression stack size */
+#define	SIZE_LPSTK	NUM_VARS/* loop stack size */
 #define	SIZE_LBUF	256
 
 #define	MAX_LINENO	65535	/* arbitrary */
@@ -101,6 +102,15 @@ struct tbvm {
 
 	int		aestk[SIZE_AESTK];
 	int		aestk_ptr;
+
+	struct loop {
+		int var;
+		int lineno;
+		int start_val;
+		int end_val;
+		int step;
+	}		lpstk[SIZE_LPSTK];
+	int		lpstk_ptr;
 };
 
 static void
@@ -260,6 +270,24 @@ basic_return_error(tbvm *vm)
 }
 
 static void
+basic_for_error(tbvm *vm)
+{
+	basic_error(vm, "?TOO MANY FOR LOOPS");
+}
+
+static void
+basic_step_error(tbvm *vm)
+{
+	basic_error(vm, "?BAD STEP");
+}
+
+static void
+basic_next_error(tbvm *vm)
+{
+	basic_error(vm, "?NEXT WITHOUT FOR");
+}
+
+static void
 basic_expression_error(tbvm *vm)
 {
 	basic_error(vm, "?EXPRESSION TOO COMPLEX");
@@ -395,6 +423,45 @@ aestk_pop(tbvm *vm)
 	return vm->aestk[slot];
 }
 
+/*********** Loop stack routines **********/
+
+static void
+lpstk_push(tbvm *vm, const struct loop *l)
+{
+	int slot;
+
+	if ((slot = stack_push(&vm->lpstk_ptr, SIZE_LPSTK)) == -1) {
+		basic_for_error(vm);
+	} else {
+		vm->lpstk[slot] = *l;
+	}
+}
+
+static struct loop *
+lpstk_peek_top(tbvm *vm)
+{
+	if (vm->lpstk_ptr == 0) {
+		vm_abort(vm, "!LOOP STACK EMPTY");
+		/* NOTREACHED */
+	}
+	return &vm->lpstk[vm->lpstk_ptr - 1];
+}
+
+static struct loop *
+lpstk_pop(tbvm *vm, int var, struct loop *l_store, bool pop_match)
+{
+	int slot;
+
+	for (slot = vm->lpstk_ptr - 1; slot >= 0; slot--) {
+		if (vm->lpstk[slot].var == var) {
+			*l_store = vm->lpstk[slot];
+			vm->lpstk_ptr = pop_match ? slot : slot + 1;
+			return l_store;
+		}
+	}
+	return NULL;
+}
+
 /*********** Variable routines **********/
 
 static int *
@@ -414,11 +481,11 @@ var_get(tbvm *vm, int idx)
 	return *slot;
 }
 
-static void
+static int
 var_set(tbvm *vm, int idx, int val)
 {
 	int *slot = var_slot(vm, idx);
-	*slot = val;
+	return (*slot = val);
 }
 
 /*********** Default I/O routines **********/
@@ -1305,6 +1372,91 @@ IMPL(EXIT)
 	vm->vm_run = false;
 }
 
+/*
+ * Push a FOR loop onto the loop stack.  The top of the AESTK
+ * contains the ending value and the next entry on AESTK contains
+ * the starting value.  Ascending or descending is inferred by the
+ * starting and ending values.  The final value on the AESTK is
+ * the var index.
+ *
+ * N.B. the loop body will ALWAYS execute at least once, as the
+ * terminating condition is checked at the NEXT statement.
+ */
+IMPL(FOR)
+{
+	struct loop l;
+
+	l.end_val = aestk_pop(vm);
+	l.start_val = aestk_pop(vm);
+	l.var = aestk_pop(vm);
+	l.lineno = next_line(vm);	/* XXX doesn't handle compound lines */
+	l.step = l.end_val > l.start_val ? 1 : -1;
+
+	lpstk_push(vm, &l);
+
+	var_set(vm, l.var, l.start_val);
+}
+
+/*
+ * Adjust the STEP value of the FOR loop at the top of the loop stack.
+ * STEP values must be > 0.  As with the FOR insn, the direction of the
+ * step is inferred by the starting and ending values.
+ */
+IMPL(STEP)
+{
+	struct loop *l = lpstk_peek_top(vm);
+	int step = aestk_pop(vm);
+
+	/* Invalid step value. */
+	if (step <= 0) {
+		basic_step_error(vm);
+	} else {
+		l->step = l->end_val > l->start_val ? step : -step;
+	}
+}
+
+/*
+ * Find the inner-most loop associated with the var index on the AESTK
+ * and:
+ *
+ *	- Pop any loops inside off the stack.
+ *	- If the terminating condition is not met, set the BASIC
+ *	  line back to the start of the loop.
+ *	- Otherwise, pop the loop off the stack and continue to
+ *	  the next BASIC line.
+ */
+IMPL(NXTFOR)
+{
+	int var = aestk_pop(vm);
+	struct loop *l, l_store;
+	int newval;
+	bool done = false;
+
+	l = lpstk_pop(vm, var, &l_store, false);
+	if (l == NULL) {
+		basic_next_error(vm);
+	}
+	newval = var_get(vm, var) + l->step;
+
+	if (l->step < 0) {
+		if (newval < l->end_val) {
+			done = true;
+		}
+	} else {
+		if (newval > l->end_val) {
+			done = true;
+		}
+	}
+
+	if (done) {
+		next_statement(vm);
+		l = lpstk_pop(vm, var, &l_store, true);
+	} else {
+		var_set(vm, var, newval);
+		set_line(vm, l->lineno, 0, true);
+	}
+}
+
 #undef IMPL
 
 #define	OPC(x)	[OPC_ ## x] = OPC_ ## x ## _impl
@@ -1348,6 +1500,9 @@ static opc_impl_func_t opc_impls[OPC___COUNT] = {
 	OPC(RUN),
 	OPC(EXIT),
 	OPC(CMPRX),
+	OPC(FOR),
+	OPC(STEP),
+	OPC(NXTFOR),
 };
 
 #undef OPC

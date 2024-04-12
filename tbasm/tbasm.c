@@ -135,6 +135,9 @@ const struct opcode opcode_tab[] = {
 	{ "RUN",	OPC_RUN,	0 },
 	{ "EXIT",	OPC_EXIT,	0 },
 	{ "CMPRX",	OPC_CMPRX,	OPC_F_LABEL },
+	{ "FOR",	OPC_FOR,	0 },
+	{ "STEP",	OPC_STEP,	0 },
+	{ "NXTFOR",	OPC_NXTFOR,	0 },
 
 	{ NULL,		0,		0 },
 };

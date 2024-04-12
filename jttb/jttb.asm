@@ -20,6 +20,8 @@
 ;
 ; ==> Added NEW as an alias for CLEAR.
 ;
+; ==> Added FOR / NEXT loops using new FOR and NXTFOR VM insns.
+;
 
 ;
 ; *** Main entry point
@@ -102,6 +104,33 @@ notPRINT:
 	JMP	STMT		; True, perform the statement.
 IF1:	NXT			; Next statement.
 notIF:
+
+	;
+	; FOR var = expression TO expression (STEP expression)
+	;
+	TST	notFOR,'FOR'	; FOR statement?
+	TSTV	Serr		; Yes, get var address.
+	TST	Serr,'='
+	CALL	EXPR		; Get first expression.
+	TST	Serr,'TO'
+	CALL	EXPR		; Get second expression.
+	FOR			; Push onto loop stack.
+	TST	noSTEP,'STEP'	; Check for STEP.
+	CALL	EXPR		; Get step expression.
+	STEP			; Adjust STEP count from default.
+noSTEP:
+	DONE			; End of statement.
+	NXT			; Next statement.
+notFOR:
+
+	;
+	; NEXT var
+	;
+	TST	notNEXT,'NEXT'	; NEXT statement?
+	TSTV	Serr		; Yes, get var address.
+	DONE			; End of statement.
+	NXTFOR			; Next statement according to loop cond.
+notNEXT:
 
 	;
 	; INPUT var-list
