@@ -1144,6 +1144,32 @@ IMPL(MUL)
 }
 
 /*
+ * Replace top two elements of AESTK by their exponentiation.
+ */
+IMPL(EXP)
+{
+	int num2 = aestk_pop(vm);
+	int num1 = aestk_pop(vm);
+	int i, val;
+
+	if (num2 < 0) {
+		if (num1 == 0) {
+			basic_division_by_zero_error(vm);
+			return;
+		}
+		num2 = -num2;
+		for (val = 1, i = 0; i < num2; i++) {
+			val /= num1;
+		}
+	} else {
+		for (val = 1, i = 0; i < num2; i++) {
+			val *= num1;
+		}
+	}
+	aestk_push(vm, val);
+}
+
+/*
  * Replace top two elements of AESTK by their quotient.
  */
 IMPL(DIV)
@@ -1155,6 +1181,21 @@ IMPL(DIV)
 		basic_division_by_zero_error(vm);
 	} else {
 		aestk_push(vm, num1 / num2);
+	}
+}
+
+/*
+ * Replaces top two elements of AESTK by their modulus.
+ */
+IMPL(MOD)
+{
+	int num2 = aestk_pop(vm);
+	int num1 = aestk_pop(vm);
+
+	if (num2 == 0) {
+		basic_division_by_zero_error(vm);
+	} else {
+		aestk_push(vm, num1 % num2);
 	}
 }
 
@@ -1503,6 +1544,8 @@ static opc_impl_func_t opc_impls[OPC___COUNT] = {
 	OPC(FOR),
 	OPC(STEP),
 	OPC(NXTFOR),
+	OPC(MOD),
+	OPC(EXP),
 };
 
 #undef OPC

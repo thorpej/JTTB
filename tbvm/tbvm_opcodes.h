@@ -75,8 +75,10 @@
 #define	OPC_FOR		36	/* JTTB addition */
 #define	OPC_STEP	37	/* JTTB addition */
 #define	OPC_NXTFOR	38	/* JTTB addition */
+#define	OPC_MOD		39	/* JTTB addition */
+#define	OPC_EXP		40	/* JTTB addition */
 
-#define	OPC___LAST	OPC_NXTFOR
+#define	OPC___LAST	OPC_EXP
 #define	OPC___COUNT	(OPC___LAST + 1)
 
 #define	OPC_F_LABEL	0x01

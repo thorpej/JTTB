@@ -22,6 +22,9 @@
 ;
 ; ==> Added FOR / NEXT loops using new FOR, STEP, and NXTFOR VM insns.
 ;
+; ==> Added exponentiation (^) and modulus (%) to expression evaluation
+;     (TERM) using new EXP and MOD VM insns.
+;
 
 ;
 ; *** Main entry point
@@ -212,7 +215,7 @@ Serr:	ERR			; Syntax error.
 ; *** Expression evaluation
 ;
 ; expression::= (+ | - | e) term ((+ | -) term)*
-; term::= factor ((* | /) factor)*
+; term::= factor ((* | ^ | / | %) factor)*
 ; factor::= var | number | (expression)
 ; var::= A | B | C ..., | Y | Z
 ; number::= digit digit*
@@ -242,7 +245,7 @@ E2:	TST	E3,'-'		; Difference?
 	SUB
 	JMP	E1		; Check for more.
 
-E3: T2:	RTN			; All done.
+E3: T4:	RTN			; All done.
 
 TERM:	CALL	FACT		; Get first factor.
 
@@ -254,6 +257,16 @@ T0:	TST	T1,'*'		; Product?
 T1:	TST	T2,'/'		; Quotient?
 	CALL	FACT		; Get second factor.
 	DIV
+	JMP	T0		; Check for more.
+
+T2:	TST	T3,'^'		; Exponentiation?
+	CALL	FACT		; Get second factor.
+	EXP
+	JMP	T0		; Check for more.
+
+T3:	TST	T4,'%'		; Modulus?
+	CALL	FACT		; Get second factor.
+	MOD
 	JMP	T0		; Check for more.
 
 FACT:	TSTV	F0		; Variable?
