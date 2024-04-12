@@ -59,6 +59,19 @@
 #define	DQUOTE		'"'
 #define	END_OF_LINE	'\n'
 
+struct saveloc {
+	int lineno;
+	int lbuf_ptr;
+};
+
+struct loop {
+	int var;
+	int lineno;
+	int start_val;
+	int end_val;
+	int step;
+};
+
 struct tbvm {
 	jmp_buf		vm_abort_env;
 	sig_atomic_t	break_received;
@@ -94,22 +107,13 @@ struct tbvm {
 	int		cstk[SIZE_CSTK];
 	int		cstk_ptr;
 
-	struct {
-		int lineno;
-		int lbuf_ptr;
-	}		sbrstk[SIZE_SBRSTK];
+	struct saveloc	sbrstk[SIZE_SBRSTK];
 	int		sbrstk_ptr;
 
 	int		aestk[SIZE_AESTK];
 	int		aestk_ptr;
 
-	struct loop {
-		int var;
-		int lineno;
-		int start_val;
-		int end_val;
-		int step;
-	}		lpstk[SIZE_LPSTK];
+	struct loop	lpstk[SIZE_LPSTK];
 	int		lpstk_ptr;
 };
 
@@ -309,6 +313,12 @@ static void
 basic_division_by_zero_error(tbvm *vm)
 {
 	basic_error(vm, "?DIVISION BY ZERO");
+}
+
+static void
+basic_number_range_error(tbvm *vm)
+{
+	basic_error(vm, "?NUMBER OUT OF RANGE");
 }
 
 /*********** Generic stack routines **********/
@@ -1501,13 +1511,26 @@ IMPL(NXTFOR)
 
 /*
  * Take the value at the top of AESTK and replace it with a random
- * number in the range of 0 ... (num - 1), inclusive.
+ * number, depending on the argument:
+ *
+ * ==> If > 1, an integer in the range of 1 ... num, inclusive.
+ *
+ * ==> If == 0, a floating point number in the range 0 ... 1.
+ *     (When floating point numbers are supported, that is.)
+ *
+ * ==> If 1 -> error
+ *
+ * This is more-or-less compatible with MS BASIC.
  */
 IMPL(RND)
 {
 	int num = aestk_pop(vm);
 
-	aestk_push(vm, rand() / (RAND_MAX / num + 1));
+	if (num > 1) {
+		aestk_push(vm, (rand() / (RAND_MAX / num + 1)) + 1);
+	} else {
+		basic_number_range_error(vm);
+	}
 }
 
 /*
