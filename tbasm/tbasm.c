@@ -140,6 +140,7 @@ const struct opcode opcode_tab[] = {
 	{ "NXTFOR",	OPC_NXTFOR,	0 },
 	{ "MOD",	OPC_MOD,	0 },
 	{ "EXP",	OPC_EXP,	0 },
+	{ "RND",	OPC_RND,	0 },
 
 	{ NULL,		0,		0 },
 };

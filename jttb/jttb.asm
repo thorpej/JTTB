@@ -228,9 +228,12 @@ Serr:	ERR			; Syntax error.
 ;          factor ^ term
 ;          factor % term
 ;
-; factor ::= var
+; factor ::= function
+;            var
 ;            number
 ;            ( expression )
+;
+; function ::= RND ( expression )
 ;
 ; var ::= A | B | ... | Y | Z
 ;
@@ -287,7 +290,20 @@ T3:	TST	T4,'%'		; Modulus?
 	MOD
 	JMP	T0		; Check for more.
 
-FACT:	TSTV	F0		; Variable?
+FACT:
+	;
+	; We have to check for functions first, because the first
+	; letter of a function name would match a variable.
+	;
+	TST	notRND,'RND'	; RND() function?
+	TST	Serr,'('
+	CALL	EXPR		; Get range expression.
+	TST	Serr,')'
+	RND
+	RTN
+notRND:
+
+	TSTV	F0		; Variable?
 	IND			; Yes, get the value.
 	RTN
 

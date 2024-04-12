@@ -1498,6 +1498,17 @@ IMPL(NXTFOR)
 	}
 }
 
+/*
+ * Take the value at the top of AESTK and replace it with a random
+ * number in the range of 0 ... (num - 1), inclusive.
+ */
+IMPL(RND)
+{
+	int num = aestk_pop(vm);
+
+	aestk_push(vm, rand() / (RAND_MAX / num + 1));
+}
+
 #undef IMPL
 
 #define	OPC(x)	[OPC_ ## x] = OPC_ ## x ## _impl
@@ -1546,6 +1557,7 @@ static opc_impl_func_t opc_impls[OPC___COUNT] = {
 	OPC(NXTFOR),
 	OPC(MOD),
 	OPC(EXP),
+	OPC(RND),
 };
 
 #undef OPC
