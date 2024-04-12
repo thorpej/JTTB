@@ -165,6 +165,10 @@ print_number_justified(tbvm *vm, int num, int width)
 	char *cp = &buf[PRN_BUFSIZE];
 	int digits = 0;
 
+	if (negative_p) {
+		num = -num;
+	}
+
 	do {
 		*--cp = '0' + (num % 10);
 		num /= 10;
