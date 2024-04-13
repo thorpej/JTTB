@@ -72,6 +72,51 @@ struct loop {
 	int step;
 };
 
+typedef struct string {
+	unsigned int refs;
+	struct string *next;
+	char *str;
+} string;
+
+struct value {
+	int type;
+	union {
+		int	integer;
+		string *string;
+	};
+};
+#define	VALUE_TYPE_ANY		0
+#define	VALUE_TYPE_INTEGER	1
+#define	VALUE_TYPE_STRING	2
+
+static void
+value_dispose(struct value *value)
+{
+	if (value->type == VALUE_TYPE_STRING) {
+		free(value->string);
+	}
+}
+
+static bool
+value_valid_p(const struct value *value)
+{
+	bool rv = true;
+
+	switch (value->type) {
+	case VALUE_TYPE_INTEGER:
+		break;
+
+	case VALUE_TYPE_STRING:
+		rv = (value->string != NULL);
+		break;
+
+	default:
+		rv = false;
+	}
+
+	return rv;
+}
+
 struct tbvm {
 	jmp_buf		vm_abort_env;
 	sig_atomic_t	break_received;
@@ -93,6 +138,9 @@ struct tbvm {
 	int		last_line;
 	char		*progstore[MAX_LINENO];
 
+	string		*strings;
+	bool		strings_need_gc;
+
 	void		*context;
 	int		(*io_getchar)(void *);
 	void		(*io_putchar)(void *, int);
@@ -110,12 +158,72 @@ struct tbvm {
 	struct saveloc	sbrstk[SIZE_SBRSTK];
 	int		sbrstk_ptr;
 
-	int		aestk[SIZE_AESTK];
+	struct value	aestk[SIZE_AESTK];
 	int		aestk_ptr;
 
 	struct loop	lpstk[SIZE_LPSTK];
 	int		lpstk_ptr;
 };
+
+static string *
+string_alloc(tbvm *vm, const char *str, size_t len)
+{
+	string *string = malloc(sizeof(*string));
+	string->str = malloc(len + 1);
+	memcpy(string->str, str, len);
+	string->str[len] = '\0';
+	string->refs = 1;
+
+	string->next = vm->strings;
+	vm->strings = string;
+
+	return string;
+}
+
+static void
+string_free(tbvm *vm, string *string)
+{
+	free(string->str);
+	free(string);
+}
+
+static void
+string_retain(tbvm *vm, string *string)
+{
+	string->refs++;
+	assert(string->refs != 0);
+}
+
+static void
+string_release(tbvm *vm, string *string)
+{
+	assert(string->refs != 0);
+	string->refs--;
+	if (string->refs == 0) {
+		vm->strings_need_gc = true;
+	}
+}
+
+static void
+string_gc(tbvm *vm)
+{
+	if (vm->strings_need_gc) {
+		string *string, *next, **nextp;
+
+		for (string = vm->strings, nextp = &vm->strings;
+		     string != NULL;
+		     string = next) {
+			next = string->next;
+			if (string->refs == 0) {
+				*nextp = next;
+				string_free(vm, string);
+			} else {
+				nextp = &string->next;
+			}
+		}
+		vm->strings_need_gc = false;
+	}
+}
 
 static void
 print_crlf(tbvm *vm)
@@ -321,6 +429,12 @@ basic_number_range_error(tbvm *vm)
 	basic_error(vm, "?NUMBER OUT OF RANGE");
 }
 
+static void
+basic_wrong_type_error(tbvm *vm)
+{
+	basic_error(vm, "?WRONG VALUE TYPE");
+}
+
 /*********** Generic stack routines **********/
 
 static int
@@ -414,19 +528,24 @@ sbrstk_pop(tbvm *vm, int *linep, int *ptrp)
 /*********** Arithmetic Expression stack routines **********/
 
 static void
-aestk_push(tbvm *vm, int val)
+aestk_push_value(tbvm *vm, const struct value *valp)
 {
 	int slot;
+
+	if (! value_valid_p(valp)) {
+		vm_abort(vm, "!INVALID VALUE");
+		/* NOTREACHED */
+	}
 
 	if ((slot = stack_push(&vm->aestk_ptr, SIZE_AESTK)) == -1) {
 		basic_expression_error(vm);
 	} else {
-		vm->aestk[slot] = val;
+		vm->aestk[slot] = *valp;
 	}
 }
 
-static int
-aestk_pop(tbvm *vm)
+static struct value *
+aestk_pop_value(tbvm *vm, int type, struct value *val_store)
 {
 	int slot;
 
@@ -434,7 +553,32 @@ aestk_pop(tbvm *vm)
 		vm_abort(vm, "!EXPRESSION STACK UNDERFLOW");
 		/* NOTREACHED */
 	}
-	return vm->aestk[slot];
+	*val_store = vm->aestk[slot];
+	if (type != VALUE_TYPE_ANY && type != val_store->type) {
+		value_dispose(val_store);
+		basic_wrong_type_error(vm);
+		return NULL;
+	}
+	return val_store;
+}
+
+static void
+aestk_push(tbvm *vm, int val)
+{
+	struct value value = {
+		.type = VALUE_TYPE_INTEGER,
+		.integer = val,
+	};
+	aestk_push_value(vm, &value);
+}
+
+static int
+aestk_pop(tbvm *vm)
+{
+	struct value value, *valp;
+
+	valp = aestk_pop_value(vm, VALUE_TYPE_INTEGER, &value);
+	return valp->integer;
 }
 
 /*********** Loop stack routines **********/
@@ -1641,6 +1785,7 @@ tbvm_exec(tbvm *vm, const char *prog, size_t progsize)
 	}
 
 	while (vm->vm_run) {
+		string_gc(vm);
 		check_break(vm);
 		vm->opc = (unsigned char)get_opcode(vm);
 		if (vm->opc > OPC___LAST || opc_impls[vm->opc] == NULL) {
