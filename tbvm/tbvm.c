@@ -145,7 +145,7 @@ struct tbvm {
 	int		(*io_getchar)(void *);
 	void		(*io_putchar)(void *, int);
 
-	int		vars[NUM_VARS];
+	struct value	vars[NUM_VARS];
 
 	char		direct_lbuf[SIZE_LBUF];
 
@@ -633,7 +633,13 @@ lpstk_pop(tbvm *vm, int var, struct loop *l_store, bool pop_match)
 
 /*********** Variable routines **********/
 
-static int *
+static void
+var_init(tbvm *vm)
+{
+	memset(vm->vars, 0, sizeof(vm->vars));
+}
+
+static struct value *
 var_slot(tbvm *vm, int idx)
 {
 	if (idx < 0 || idx >= NUM_VARS) {
@@ -645,15 +651,15 @@ var_slot(tbvm *vm, int idx)
 static int
 var_get(tbvm *vm, int idx)
 {
-	int *slot = var_slot(vm, idx);
-	return *slot;
+	struct value *slot = var_slot(vm, idx);
+	return slot->integer;
 }
 
 static int
 var_set(tbvm *vm, int idx, int val)
 {
-	int *slot = var_slot(vm, idx);
-	return (*slot = val);
+	struct value *slot = var_slot(vm, idx);
+	return (slot->integer = val);
 }
 
 /*********** Default I/O routines **********/
@@ -834,7 +840,7 @@ static void
 init_vm(tbvm *vm)
 {
 	progstore_init(vm);
-	memset(vm->vars, 0, sizeof(vm->vars));
+	var_init(vm);
 
 	vm->cstk_ptr = 0;
 	vm->sbrstk_ptr = 0;
