@@ -521,7 +521,7 @@ sbrstk_push(tbvm *vm, int line, int ptr)
 	vm->sbrstk[slot].lbuf_ptr = ptr;
 }
 
-static bool
+static void
 sbrstk_pop(tbvm *vm, int *linep, int *ptrp)
 {
 	int slot;
@@ -531,7 +531,6 @@ sbrstk_pop(tbvm *vm, int *linep, int *ptrp)
 	}
 	*linep = vm->sbrstk[slot].lineno;
 	*ptrp = vm->sbrstk[slot].lbuf_ptr;
-	return true;
 }
 
 /*********** Arithmetic Expression stack routines **********/
@@ -1161,9 +1160,8 @@ IMPL(RSTR)
 {
 	int lineno, ptr;
 
-	if (sbrstk_pop(vm, &lineno, &ptr)) {
-		restore_line(vm, lineno, ptr);
-	}
+	sbrstk_pop(vm, &lineno, &ptr);
+	restore_line(vm, lineno, ptr);
 }
 
 bool
