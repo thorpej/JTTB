@@ -1674,6 +1674,22 @@ IMPL(ABS)
 	aestk_push_integer(vm, abs(num));
 }
 
+/*
+ * Skip whitespace and then test if we are at the end-of-line. If not,
+ * branch to the label.
+ *
+ * Does NOT advance past the END-OF-LINE character!
+ */
+IMPL(TSTEOL)
+{
+	int label = get_label(vm);
+
+	skip_whitespace(vm);
+	if (peek_linebyte(vm, 0) != END_OF_LINE) {
+		vm->pc = label;
+	}
+}
+
 #undef IMPL
 
 #define	OPC(x)	[OPC_ ## x] = OPC_ ## x ## _impl
@@ -1724,6 +1740,7 @@ static opc_impl_func_t opc_impls[OPC___COUNT] = {
 	OPC(EXP),
 	OPC(RND),
 	OPC(ABS),
+	OPC(TSTEOL),
 };
 
 #undef OPC

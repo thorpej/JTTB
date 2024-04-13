@@ -55,6 +55,9 @@
 ;
 ; ==> Added an ABS() function using a new ABS VM insn.
 ;
+; ==> Make the PRINT statement more like MS BASIC's, using the new
+;     TSTEOL VM insn.
+;
 
 ;
 ; *** Main entry point
@@ -106,23 +109,59 @@ notGOTO:
 notGO:
 
 	;
-	; PRINT expr-list
+	; PRINT printlist
 	;
-	; expr-list::= (string | expression) (, (string | expression) )*
+	; printlist ::=
+	;               printitem
+	;               printitem |
+	;               printitem separator printlist
+	;
+	; printitem ::= expression
+	;               "characterstring"
+	;
+	; separator ::= ,
+	;               ;
 	;
 	TST	notPRINT,'PRINT'; PRINT statement?
-PR1:	TST	PR4,'"'		; Test for quote.
-	PRS			; Yes, print string.
-PR2:	TST	PR3,','		; Is there more?
-	SPC			; Yes, space to next zone.
-	JMP	PR1		; Get more stuff to print.
-PR3:	DONE			; End of statement.
-	NLINE
+
+	;
+	; Check for bare PRINT statement, which just prints a newline.
+	;
+	TSTEOL	PR1
+	NLINE			; Print newline.
 	NXT			; Next statement.
 
-PR4:	CALL	EXPR		; Get expression
+	;
+	; Handle EOL when there is a trailing separator, which does
+	; not have a newline at the end.
+	;
+PREOLsep:
+	TSTEOL	PR1		; Test for EOL.
+	NXT			; Next statement.
+
+PR1:	TST	PR2,'"'		; Test for quote.
+	PRS			; Yes, print string.
+	JMP	PRchecksep	; Go check for a separator.
+
+PR2:	CALL	EXPR		; Get expression.
 	PRN			; Print value.
-	JMP	PR2		; Check for more.
+	; FALLTHROUGH
+
+PRchecksep:
+	TST	PR3,','		; Test for comma separator.
+	SPC			; Advance print head.
+	JMP	PREOLsep	; Check for EOL and maybe process more.
+
+PR3:	TST	PR4,';'		; Test for semicolon separator.
+	JMP	PREOLsep	; Check for EOL and maybe process more.
+
+	;
+	; We've processed arguments and there is no separator; this means
+	; we are done and that a newline should be printed.
+	;
+PR4:	DONE			; End of statement.
+	NLINE			; Print newline.
+	NXT			; Next statement.
 notPRINT:
 
 	;
