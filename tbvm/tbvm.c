@@ -229,6 +229,17 @@ string_gc(tbvm *vm)
 }
 
 static void
+string_freeall(tbvm *vm)
+{
+	string *string;
+
+	while ((string = vm->strings) != NULL) {
+		vm->strings = string->next;
+		string_free(vm, string);
+	}
+}
+
+static void
 print_crlf(tbvm *vm)
 {
 	(*vm->io_putchar)(vm->context, '\n');
@@ -1787,5 +1798,6 @@ tbvm_break(tbvm *vm)
 void
 tbvm_free(tbvm *vm)
 {
+	string_freeall(vm);
 	free(vm);
 }
