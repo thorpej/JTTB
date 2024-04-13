@@ -47,6 +47,8 @@
 #include "tbvm.h"
 #include "tbvm_opcodes.h"
 
+#define	DOES_NOT_RETURN	__attribute__((__noreturn__))
+
 #define	NUM_VARS	26	/* A - Z */
 #define	SIZE_CSTK	64	/* control stack size */
 #define	SIZE_SBRSTK	64	/* subroutine stack size */
@@ -119,6 +121,7 @@ value_valid_p(const struct value *value)
 
 struct tbvm {
 	jmp_buf		vm_abort_env;
+	jmp_buf		basic_error_env;
 	sig_atomic_t	break_received;
 
 	const char	*vm_prog;
@@ -313,7 +316,7 @@ print_number(tbvm *vm, int num)
 	print_number_justified(vm, num, 0);
 }
 
-static void
+static void DOES_NOT_RETURN
 vm_abort(tbvm *vm, const char *msg)
 {
 	print_string(vm, msg);
@@ -338,7 +341,7 @@ direct_mode(tbvm *vm, int ptr)
 
 /*********** BASIC error helper routines **********/
 
-static void
+static void DOES_NOT_RETURN
 basic_error(tbvm *vm, const char *msg)
 {
 	print_string(vm, msg);
@@ -347,89 +350,84 @@ basic_error(tbvm *vm, const char *msg)
 		print_number(vm, vm->lineno);
 	}
 	print_crlf(vm);
-
-	/*
-	 * Go back to direct mode and jump to the line collection
-	 * routine.
-	 */
-	direct_mode(vm, 0);
+	longjmp(vm->basic_error_env, 1);
 }
 
-static void
+static void DOES_NOT_RETURN
 basic_syntax_error(tbvm *vm)
 {
 	basic_error(vm, "?SYNTAX ERROR");
 }
 
-static void
+static void DOES_NOT_RETURN
 basic_missing_line_error(tbvm *vm)
 {
 	basic_error(vm, "?MISSING LINE");
 }
 
-static void
+static void DOES_NOT_RETURN
 basic_line_number_error(tbvm *vm)
 {
 	basic_error(vm, "?LINE NUMBER OUT OF RANGE");
 }
 
-static void
+static void DOES_NOT_RETURN
 basic_gosub_error(tbvm *vm)
 {
 	basic_error(vm, "?TOO MANY GOSUBS");
 }
 
-static void
+static void DOES_NOT_RETURN
 basic_return_error(tbvm *vm)
 {
 	basic_error(vm, "?RETURN WITHOUT GOSUB");
 }
 
-static void
+static void DOES_NOT_RETURN
 basic_for_error(tbvm *vm)
 {
 	basic_error(vm, "?TOO MANY FOR LOOPS");
 }
 
-static void
+static void DOES_NOT_RETURN
 basic_step_error(tbvm *vm)
 {
 	basic_error(vm, "?BAD STEP");
 }
 
-static void
+static void DOES_NOT_RETURN
 basic_next_error(tbvm *vm)
 {
 	basic_error(vm, "?NEXT WITHOUT FOR");
 }
 
-static void
+static void DOES_NOT_RETURN
 basic_expression_error(tbvm *vm)
 {
 	basic_error(vm, "?EXPRESSION TOO COMPLEX");
 }
 
 #if 0
-static void
+static void DOES_NOT_RETURN
 basic_too_many_lines_error(tbvm *vm)
 {
 	basic_error(vm, "?TOO MANY LINES");
 }
 #endif
 
-static void
+static void DOES_NOT_RETURN
 basic_division_by_zero_error(tbvm *vm)
 {
 	basic_error(vm, "?DIVISION BY ZERO");
 }
 
-static void
+static void DOES_NOT_RETURN
 basic_number_range_error(tbvm *vm)
 {
 	basic_error(vm, "?NUMBER OUT OF RANGE");
 }
 
-static void
+static void DOES_NOT_RETURN
 basic_wrong_type_error(tbvm *vm)
 {
 	basic_error(vm, "?WRONG VALUE TYPE");
@@ -476,7 +474,6 @@ cstk_push(tbvm *vm, int val)
 
 	if ((slot = stack_push(&vm->cstk_ptr, SIZE_CSTK)) == -1) {
 		vm_abort(vm, "!CONTROL STACK OVERFLOW");
-		/* NOTREACHED */
 	}
 	
 	vm->cstk[slot] = val;
@@ -489,7 +486,6 @@ cstk_pop(tbvm *vm)
 
 	if ((slot = stack_pop(&vm->cstk_ptr, SIZE_CSTK)) == -1) {
 		vm_abort(vm, "!CONTROL STACK UNDERFLOW");
-		/* NOTREACHED */
 	}
 
 	return vm->cstk[slot];
@@ -504,10 +500,9 @@ sbrstk_push(tbvm *vm, int line, int ptr)
 
 	if ((slot = stack_push(&vm->sbrstk_ptr, SIZE_SBRSTK)) == -1) {
 		basic_gosub_error(vm);
-	} else {
-		vm->sbrstk[slot].lineno = line;
-		vm->sbrstk[slot].lbuf_ptr = ptr;
 	}
+	vm->sbrstk[slot].lineno = line;
+	vm->sbrstk[slot].lbuf_ptr = ptr;
 }
 
 static bool
@@ -517,12 +512,10 @@ sbrstk_pop(tbvm *vm, int *linep, int *ptrp)
 
 	if ((slot = stack_pop(&vm->sbrstk_ptr, SIZE_SBRSTK)) == -1) {
 		basic_return_error(vm);
-		return false;
-	} else {
-		*linep = vm->sbrstk[slot].lineno;
-		*ptrp = vm->sbrstk[slot].lbuf_ptr;
-		return true;
 	}
+	*linep = vm->sbrstk[slot].lineno;
+	*ptrp = vm->sbrstk[slot].lbuf_ptr;
+	return true;
 }
 
 /*********** Arithmetic Expression stack routines **********/
@@ -534,14 +527,12 @@ aestk_push_value(tbvm *vm, const struct value *valp)
 
 	if (! value_valid_p(valp)) {
 		vm_abort(vm, "!INVALID VALUE");
-		/* NOTREACHED */
 	}
 
 	if ((slot = stack_push(&vm->aestk_ptr, SIZE_AESTK)) == -1) {
 		basic_expression_error(vm);
-	} else {
-		vm->aestk[slot] = *valp;
 	}
+	vm->aestk[slot] = *valp;
 }
 
 static struct value *
@@ -551,13 +542,11 @@ aestk_pop_value(tbvm *vm, int type, struct value *val_store)
 
 	if ((slot = stack_pop(&vm->aestk_ptr, SIZE_AESTK)) == -1) {
 		vm_abort(vm, "!EXPRESSION STACK UNDERFLOW");
-		/* NOTREACHED */
 	}
 	*val_store = vm->aestk[slot];
 	if (type != VALUE_TYPE_ANY && type != val_store->type) {
 		value_dispose(val_store);
 		basic_wrong_type_error(vm);
-		return NULL;
 	}
 	return val_store;
 }
@@ -590,9 +579,8 @@ lpstk_push(tbvm *vm, const struct loop *l)
 
 	if ((slot = stack_push(&vm->lpstk_ptr, SIZE_LPSTK)) == -1) {
 		basic_for_error(vm);
-	} else {
-		vm->lpstk[slot] = *l;
 	}
+	vm->lpstk[slot] = *l;
 }
 
 static struct loop *
@@ -600,7 +588,6 @@ lpstk_peek_top(tbvm *vm)
 {
 	if (vm->lpstk_ptr == 0) {
 		vm_abort(vm, "!LOOP STACK EMPTY");
-		/* NOTREACHED */
 	}
 	return &vm->lpstk[vm->lpstk_ptr - 1];
 }
@@ -627,7 +614,6 @@ var_slot(tbvm *vm, int idx)
 {
 	if (idx < 0 || idx >= NUM_VARS) {
 		vm_abort(vm, "!INVALID VARIABLE INDEX");
-		/* NOTREACHED */
 	}
 	return &vm->vars[idx];
 }
@@ -865,23 +851,19 @@ set_line_ext(tbvm *vm, int lineno, int ptr, bool fatal, bool restoring)
 	if (lineno < 0 || lineno > MAX_LINENO) {
 		if (fatal) {
 			vm_abort(vm, "!LINE NUMBER OUT OF RANGE");
-			/* NOTREACHED */
 		} else {
 			basic_line_number_error(vm);
 		}
-		return;
 	}
 
 	if (ptr < 0 || ptr >= SIZE_LBUF) {
 		vm_abort(vm, "!LBUF POINTER OUT OF RANGE");
-		/* NOTREACHED */
 	}
 
 	lbuf = find_line(vm, lineno);
 	if (lbuf == NULL) {
 		if (fatal) {
 			vm_abort(vm, "!MISSING LINE");
-			/* NOTREACHED */
 		} else {
 			basic_missing_line_error(vm);
 		}
@@ -924,7 +906,6 @@ get_progbyte(tbvm *vm)
 {
 	if (vm->pc < 0 || vm->pc >= vm->vm_progsize) {
 		vm_abort(vm, "!VM PROGRAM COUNTER OUT OF RANGE");
-		/* NOTREACHED */
 	}
 	return vm->vm_prog[vm->pc++];
 }
@@ -1122,9 +1103,8 @@ IMPL(XFER)
 	/* Don't let this put us in direct mode. */
 	if (lineno == 0) {
 		basic_line_number_error(vm);
-	} else {
-		set_line(vm, lineno, 0, false);
 	}
+	set_line(vm, lineno, 0, false);
 }
 
 /*
@@ -1196,7 +1176,6 @@ compare(tbvm *vm)
 	
 	default:
 		vm_abort(vm, "!INVALID RELATIONAL OPERATOR");
-		/* NOTREACHED */
 	}
 
 	return result;
@@ -1310,7 +1289,6 @@ IMPL(EXP)
 	if (num2 < 0) {
 		if (num1 == 0) {
 			basic_division_by_zero_error(vm);
-			return;
 		}
 		num2 = -num2;
 		for (val = 1, i = 0; i < num2; i++) {
@@ -1334,9 +1312,8 @@ IMPL(DIV)
 
 	if (num2 == 0) {
 		basic_division_by_zero_error(vm);
-	} else {
-		aestk_push(vm, num1 / num2);
 	}
+	aestk_push(vm, num1 / num2);
 }
 
 /*
@@ -1349,9 +1326,8 @@ IMPL(MOD)
 
 	if (num2 == 0) {
 		basic_division_by_zero_error(vm);
-	} else {
-		aestk_push(vm, num1 % num2);
 	}
+	aestk_push(vm, num1 % num2);
 }
 
 /*
@@ -1606,9 +1582,8 @@ IMPL(STEP)
 	/* Invalid step value. */
 	if (step <= 0) {
 		basic_step_error(vm);
-	} else {
-		l->step = l->end_val > l->start_val ? step : -step;
 	}
+	l->step = l->end_val > l->start_val ? step : -step;
 }
 
 /*
@@ -1784,13 +1759,20 @@ tbvm_exec(tbvm *vm, const char *prog, size_t progsize)
 		vm->vm_run = false;
 	}
 
+	if (setjmp(vm->basic_error_env)) {
+		/*
+		 * Go back to direct mode and jump to the line collection
+		 * routine.
+		 */
+		direct_mode(vm, 0);
+	}
+
 	while (vm->vm_run) {
 		string_gc(vm);
 		check_break(vm);
 		vm->opc = (unsigned char)get_opcode(vm);
 		if (vm->opc > OPC___LAST || opc_impls[vm->opc] == NULL) {
 			vm_abort(vm, "!UNDEFINED VM OPCODE");
-			/* NOTREACHED */
 		}
 		(*opc_impls[vm->opc])(vm);
 	}
