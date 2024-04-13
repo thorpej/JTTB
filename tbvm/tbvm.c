@@ -90,6 +90,7 @@ struct value {
 #define	VALUE_TYPE_ANY		0
 #define	VALUE_TYPE_INTEGER	1
 #define	VALUE_TYPE_STRING	2
+#define	VALUE_TYPE_VARREF	10
 
 static void
 value_dispose(struct value *value)
@@ -110,6 +111,10 @@ value_valid_p(const struct value *value)
 
 	case VALUE_TYPE_STRING:
 		rv = (value->string != NULL);
+		break;
+
+	case VALUE_TYPE_VARREF:
+		rv = (value->integer >= 0 && value->integer <= NUM_VARS);
 		break;
 
 	default:
@@ -578,6 +583,25 @@ aestk_pop_integer(tbvm *vm)
 	struct value value, *valp;
 
 	valp = aestk_pop_value(vm, VALUE_TYPE_INTEGER, &value);
+	return valp->integer;
+}
+
+static void
+aestk_push_varref(tbvm *vm, int var)
+{
+	struct value value = {
+		.type = VALUE_TYPE_VARREF,
+		.integer = var,
+	};
+	aestk_push_value(vm, &value);
+}
+
+static int
+aestk_pop_varref(tbvm *vm)
+{
+	struct value value, *valp;
+
+	valp = aestk_pop_value(vm, VALUE_TYPE_VARREF, &value);
 	return valp->integer;
 }
 
@@ -1349,7 +1373,7 @@ IMPL(MOD)
 IMPL(STORE)
 {
 	int val = aestk_pop_integer(vm);
-	int var = aestk_pop_integer(vm);
+	int var = aestk_pop_varref(vm);
 	var_set(vm, var, val);
 }
 
@@ -1367,7 +1391,7 @@ IMPL(TSTV)
 	c = peek_linebyte(vm, 0);
 	if (c >= 'A' && c <= 'Z') {
 		advance_cursor(vm, 1);
-		aestk_push_integer(vm, c - 'A');
+		aestk_push_varref(vm, c - 'A');
 	} else {
 		vm->pc = label;
 	}
@@ -1420,7 +1444,7 @@ IMPL(TSTN)
  */
 IMPL(IND)
 {
-	int var = aestk_pop_integer(vm);
+	int var = aestk_pop_varref(vm);
 	aestk_push_integer(vm, var_get(vm, var));
 }
 
@@ -1571,7 +1595,7 @@ IMPL(FOR)
 
 	l.end_val = aestk_pop_integer(vm);
 	l.start_val = aestk_pop_integer(vm);
-	l.var = aestk_pop_integer(vm);
+	l.var = aestk_pop_varref(vm);
 	l.lineno = next_line(vm);	/* XXX doesn't handle compound lines */
 	l.step = l.end_val > l.start_val ? 1 : -1;
 
@@ -1609,7 +1633,7 @@ IMPL(STEP)
  */
 IMPL(NXTFOR)
 {
-	int var = aestk_pop_integer(vm);
+	int var = aestk_pop_varref(vm);
 	struct loop *l, l_store;
 	int newval;
 	bool done = false;
