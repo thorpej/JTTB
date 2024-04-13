@@ -563,7 +563,7 @@ aestk_pop_value(tbvm *vm, int type, struct value *val_store)
 }
 
 static void
-aestk_push(tbvm *vm, int val)
+aestk_push_integer(tbvm *vm, int val)
 {
 	struct value value = {
 		.type = VALUE_TYPE_INTEGER,
@@ -573,7 +573,7 @@ aestk_push(tbvm *vm, int val)
 }
 
 static int
-aestk_pop(tbvm *vm)
+aestk_pop_integer(tbvm *vm)
 {
 	struct value value, *valp;
 
@@ -1075,7 +1075,7 @@ IMPL(PRS)
  */
 IMPL(PRN)
 {
-	print_number(vm, aestk_pop(vm));
+	print_number(vm, aestk_pop_integer(vm));
 }
 
 /*
@@ -1109,7 +1109,7 @@ IMPL(NXT)
  */
 IMPL(XFER)
 {
-	int lineno = aestk_pop(vm);
+	int lineno = aestk_pop_integer(vm);
 
 	/* Don't let this put us in direct mode. */
 	if (lineno == 0) {
@@ -1145,9 +1145,9 @@ IMPL(RSTR)
 bool
 compare(tbvm *vm)
 {
-	int val2 = aestk_pop(vm);
-	int rel  = aestk_pop(vm);
-	int val1 = aestk_pop(vm);
+	int val2 = aestk_pop_integer(vm);
+	int rel  = aestk_pop_integer(vm);
+	int val1 = aestk_pop_integer(vm);
 	bool result = false;
 
 	/*
@@ -1223,7 +1223,7 @@ IMPL(CMPRX)
  */
 IMPL(LIT)
 {
-	aestk_push(vm, get_literal(vm));
+	aestk_push_integer(vm, get_literal(vm));
 }
 
 /*
@@ -1254,9 +1254,9 @@ IMPL(ERR)
  */
 IMPL(ADD)
 {
-	int num2 = aestk_pop(vm);
-	int num1 = aestk_pop(vm);
-	aestk_push(vm, num1 + num2);
+	int num2 = aestk_pop_integer(vm);
+	int num1 = aestk_pop_integer(vm);
+	aestk_push_integer(vm, num1 + num2);
 }
 
 /*
@@ -1265,9 +1265,9 @@ IMPL(ADD)
  */
 IMPL(SUB)
 {
-	int num2 = aestk_pop(vm);
-	int num1 = aestk_pop(vm);
-	aestk_push(vm, num1 - num2);
+	int num2 = aestk_pop_integer(vm);
+	int num1 = aestk_pop_integer(vm);
+	aestk_push_integer(vm, num1 - num2);
 }
 
 /*
@@ -1275,7 +1275,7 @@ IMPL(SUB)
  */
 IMPL(NEG)
 {
-	aestk_push(vm, -aestk_pop(vm));
+	aestk_push_integer(vm, -aestk_pop_integer(vm));
 }
 
 /*
@@ -1283,9 +1283,9 @@ IMPL(NEG)
  */
 IMPL(MUL)
 {
-	int num2 = aestk_pop(vm);
-	int num1 = aestk_pop(vm);
-	aestk_push(vm, num1 * num2);
+	int num2 = aestk_pop_integer(vm);
+	int num1 = aestk_pop_integer(vm);
+	aestk_push_integer(vm, num1 * num2);
 }
 
 /*
@@ -1293,8 +1293,8 @@ IMPL(MUL)
  */
 IMPL(EXP)
 {
-	int num2 = aestk_pop(vm);
-	int num1 = aestk_pop(vm);
+	int num2 = aestk_pop_integer(vm);
+	int num1 = aestk_pop_integer(vm);
 	int i, val;
 
 	if (num2 < 0) {
@@ -1310,7 +1310,7 @@ IMPL(EXP)
 			val *= num1;
 		}
 	}
-	aestk_push(vm, val);
+	aestk_push_integer(vm, val);
 }
 
 /*
@@ -1318,13 +1318,13 @@ IMPL(EXP)
  */
 IMPL(DIV)
 {
-	int num2 = aestk_pop(vm);
-	int num1 = aestk_pop(vm);
+	int num2 = aestk_pop_integer(vm);
+	int num1 = aestk_pop_integer(vm);
 
 	if (num2 == 0) {
 		basic_division_by_zero_error(vm);
 	}
-	aestk_push(vm, num1 / num2);
+	aestk_push_integer(vm, num1 / num2);
 }
 
 /*
@@ -1332,13 +1332,13 @@ IMPL(DIV)
  */
 IMPL(MOD)
 {
-	int num2 = aestk_pop(vm);
-	int num1 = aestk_pop(vm);
+	int num2 = aestk_pop_integer(vm);
+	int num1 = aestk_pop_integer(vm);
 
 	if (num2 == 0) {
 		basic_division_by_zero_error(vm);
 	}
-	aestk_push(vm, num1 % num2);
+	aestk_push_integer(vm, num1 % num2);
 }
 
 /*
@@ -1348,8 +1348,8 @@ IMPL(MOD)
  */
 IMPL(STORE)
 {
-	int val = aestk_pop(vm);
-	int var = aestk_pop(vm);
+	int val = aestk_pop_integer(vm);
+	int var = aestk_pop_integer(vm);
 	var_set(vm, var, val);
 }
 
@@ -1367,7 +1367,7 @@ IMPL(TSTV)
 	c = peek_linebyte(vm, 0);
 	if (c >= 'A' && c <= 'Z') {
 		advance_cursor(vm, 1);
-		aestk_push(vm, c - 'A');
+		aestk_push_integer(vm, c - 'A');
 	} else {
 		vm->pc = label;
 	}
@@ -1409,7 +1409,7 @@ IMPL(TSTN)
 	int val;
 
 	if (parse_number(vm, true, &val)) {
-		aestk_push(vm, val);
+		aestk_push_integer(vm, val);
 	} else {
 		vm->pc = label;
 	}
@@ -1420,8 +1420,8 @@ IMPL(TSTN)
  */
 IMPL(IND)
 {
-	int var = aestk_pop(vm);
-	aestk_push(vm, var_get(vm, var));
+	int var = aestk_pop_integer(vm);
+	aestk_push_integer(vm, var_get(vm, var));
 }
 
 /*
@@ -1569,9 +1569,9 @@ IMPL(FOR)
 {
 	struct loop l;
 
-	l.end_val = aestk_pop(vm);
-	l.start_val = aestk_pop(vm);
-	l.var = aestk_pop(vm);
+	l.end_val = aestk_pop_integer(vm);
+	l.start_val = aestk_pop_integer(vm);
+	l.var = aestk_pop_integer(vm);
 	l.lineno = next_line(vm);	/* XXX doesn't handle compound lines */
 	l.step = l.end_val > l.start_val ? 1 : -1;
 
@@ -1588,7 +1588,7 @@ IMPL(FOR)
 IMPL(STEP)
 {
 	struct loop *l = lpstk_peek_top(vm);
-	int step = aestk_pop(vm);
+	int step = aestk_pop_integer(vm);
 
 	/* Invalid step value. */
 	if (step <= 0) {
@@ -1609,7 +1609,7 @@ IMPL(STEP)
  */
 IMPL(NXTFOR)
 {
-	int var = aestk_pop(vm);
+	int var = aestk_pop_integer(vm);
 	struct loop *l, l_store;
 	int newval;
 	bool done = false;
@@ -1654,10 +1654,10 @@ IMPL(NXTFOR)
  */
 IMPL(RND)
 {
-	int num = aestk_pop(vm);
+	int num = aestk_pop_integer(vm);
 
 	if (num > 1) {
-		aestk_push(vm, (rand() / (RAND_MAX / num + 1)) + 1);
+		aestk_push_integer(vm, (rand() / (RAND_MAX / num + 1)) + 1);
 	} else {
 		basic_number_range_error(vm);
 	}
@@ -1669,9 +1669,9 @@ IMPL(RND)
  */
 IMPL(ABS)
 {
-	int num = aestk_pop(vm);
+	int num = aestk_pop_integer(vm);
 
-	aestk_push(vm, abs(num));
+	aestk_push_integer(vm, abs(num));
 }
 
 #undef IMPL
