@@ -92,14 +92,6 @@ struct value {
 #define	VALUE_TYPE_STRING	2
 #define	VALUE_TYPE_VARREF	10
 
-static void
-value_dispose(struct value *value)
-{
-	if (value->type == VALUE_TYPE_STRING) {
-		free(value->string);
-	}
-}
-
 static bool
 value_valid_p(const struct value *value)
 {
@@ -541,7 +533,7 @@ aestk_push_value(tbvm *vm, const struct value *valp)
 	int slot;
 
 	if (! value_valid_p(valp)) {
-		vm_abort(vm, "!INVALID VALUE");
+		vm_abort(vm, "!PUSHING INVALID VALUE");
 	}
 
 	if ((slot = stack_push(&vm->aestk_ptr, SIZE_AESTK)) == -1) {
@@ -550,20 +542,18 @@ aestk_push_value(tbvm *vm, const struct value *valp)
 	vm->aestk[slot] = *valp;
 }
 
-static struct value *
-aestk_pop_value(tbvm *vm, int type, struct value *val_store)
+static void
+aestk_pop_value(tbvm *vm, int type, struct value *valp)
 {
 	int slot;
 
 	if ((slot = stack_pop(&vm->aestk_ptr, SIZE_AESTK)) == -1) {
 		vm_abort(vm, "!EXPRESSION STACK UNDERFLOW");
 	}
-	*val_store = vm->aestk[slot];
-	if (type != VALUE_TYPE_ANY && type != val_store->type) {
-		value_dispose(val_store);
+	*valp = vm->aestk[slot];
+	if (type != VALUE_TYPE_ANY && type != valp->type) {
 		basic_wrong_type_error(vm);
 	}
-	return val_store;
 }
 
 static void
@@ -579,10 +569,10 @@ aestk_push_integer(tbvm *vm, int val)
 static int
 aestk_pop_integer(tbvm *vm)
 {
-	struct value value, *valp;
+	struct value value;
 
-	valp = aestk_pop_value(vm, VALUE_TYPE_INTEGER, &value);
-	return valp->integer;
+	aestk_pop_value(vm, VALUE_TYPE_INTEGER, &value);
+	return value.integer;
 }
 
 static void
@@ -598,10 +588,10 @@ aestk_push_varref(tbvm *vm, int var)
 static int
 aestk_pop_varref(tbvm *vm)
 {
-	struct value value, *valp;
+	struct value value;
 
-	valp = aestk_pop_value(vm, VALUE_TYPE_VARREF, &value);
-	return valp->integer;
+	aestk_pop_value(vm, VALUE_TYPE_VARREF, &value);
+	return value.integer;
 }
 
 /*********** Loop stack routines **********/
