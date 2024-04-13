@@ -649,14 +649,14 @@ var_slot(tbvm *vm, int idx)
 }
 
 static int
-var_get(tbvm *vm, int idx)
+var_get_integer(tbvm *vm, int idx)
 {
 	struct value *slot = var_slot(vm, idx);
 	return slot->integer;
 }
 
 static int
-var_set(tbvm *vm, int idx, int val)
+var_set_integer(tbvm *vm, int idx, int val)
 {
 	struct value *slot = var_slot(vm, idx);
 	return (slot->integer = val);
@@ -1368,7 +1368,7 @@ IMPL(STORE)
 {
 	int val = aestk_pop_integer(vm);
 	int var = aestk_pop_varref(vm);
-	var_set(vm, var, val);
+	var_set_integer(vm, var, val);
 }
 
 /*
@@ -1439,7 +1439,7 @@ IMPL(TSTN)
 IMPL(IND)
 {
 	int var = aestk_pop_varref(vm);
-	aestk_push_integer(vm, var_get(vm, var));
+	aestk_push_integer(vm, var_get_integer(vm, var));
 }
 
 /*
@@ -1595,7 +1595,7 @@ IMPL(FOR)
 
 	lpstk_push(vm, &l);
 
-	var_set(vm, l.var, l.start_val);
+	var_set_integer(vm, l.var, l.start_val);
 }
 
 /*
@@ -1636,7 +1636,7 @@ IMPL(NXTFOR)
 	if (l == NULL) {
 		basic_next_error(vm);
 	}
-	newval = var_get(vm, var) + l->step;
+	newval = var_get_integer(vm, var) + l->step;
 
 	if (l->step < 0) {
 		if (newval < l->end_val) {
@@ -1652,7 +1652,7 @@ IMPL(NXTFOR)
 		next_statement(vm);
 		l = lpstk_pop(vm, var, &l_store, true);
 	} else {
-		var_set(vm, var, newval);
+		var_set_integer(vm, var, newval);
 		set_line(vm, l->lineno, 0, true);
 	}
 }
