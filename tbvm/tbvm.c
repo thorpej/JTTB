@@ -78,6 +78,7 @@ typedef struct string {
 	unsigned int refs;
 	struct string *next;
 	char *str;
+	size_t len;
 } string;
 
 struct value {
