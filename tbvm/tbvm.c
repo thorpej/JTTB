@@ -253,6 +253,22 @@ print_cstring(tbvm *vm, const char *msg)
 	}
 }
 
+static void
+print_strbuf(tbvm *vm, const char *str, size_t len)
+{
+	size_t i;
+
+	for (i = 0; i < len; i++) {
+		(*vm->io_putchar)(vm->context, str[i]);
+	}
+}
+
+static void
+print_string(tbvm *vm, string *string)
+{
+	print_strbuf(vm, string->str, string->len);
+}
+
 static int
 printed_number_width(int num)
 {
@@ -314,9 +330,7 @@ print_number_justified(tbvm *vm, int num, int width)
 		}
 	}
 
-	do {
-		(*vm->io_putchar)(vm->context, *cp++);
-	} while (cp != &buf[PRN_BUFSIZE]);
+	print_strbuf(vm, cp, &buf[PRN_BUFSIZE] - cp);
 }
 
 static void
@@ -1113,6 +1127,11 @@ IMPL(PRN)
 	switch (value.type) {
 	case VALUE_TYPE_INTEGER:
 		print_number(vm, value.integer);
+		break;
+
+	case VALUE_TYPE_STRING:
+		print_string(vm, value.string);
+		string_release(vm, value.string);
 		break;
 
 	default:
