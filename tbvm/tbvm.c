@@ -244,7 +244,7 @@ print_crlf(tbvm *vm)
 }
 
 static void
-print_string(tbvm *vm, const char *msg)
+print_cstring(tbvm *vm, const char *msg)
 {
 	const char *cp;
 
@@ -328,10 +328,10 @@ print_number(tbvm *vm, int num)
 static void DOES_NOT_RETURN
 vm_abort(tbvm *vm, const char *msg)
 {
-	print_string(vm, msg);
-	print_string(vm, ", PC=");
+	print_cstring(vm, msg);
+	print_cstring(vm, ", PC=");
 	print_number(vm, vm->opc_pc);
-	print_string(vm, ", OPC=");
+	print_cstring(vm, ", OPC=");
 	print_number(vm, vm->opc);
 	print_crlf(vm);
 	vm->vm_run = false;
@@ -353,9 +353,9 @@ direct_mode(tbvm *vm, int ptr)
 static void DOES_NOT_RETURN
 basic_error(tbvm *vm, const char *msg)
 {
-	print_string(vm, msg);
+	print_cstring(vm, msg);
 	if (! vm->direct) {
-		print_string(vm, " AT LINE ");
+		print_cstring(vm, " AT LINE ");
 		print_number(vm, vm->lineno);
 	}
 	print_crlf(vm);
@@ -859,7 +859,7 @@ check_break(tbvm *vm)
 {
 	if (vm->break_received) {
 		print_crlf(vm);
-		print_string(vm, "BREAK");
+		print_cstring(vm, "BREAK");
 		print_crlf(vm);
 		direct_mode(vm, 0);
 		vm->break_received = 0;
@@ -1494,7 +1494,7 @@ IMPL(GETLINE)
 	vm->lbuf_ptr = 0;
 
 	if (! vm->suppress_prompt) {
-		print_string(vm, "OK");
+		print_cstring(vm, "OK");
 		print_crlf(vm);
 	}
 	vm->suppress_prompt = false;
@@ -1506,7 +1506,7 @@ IMPL(GETLINE)
 		ch = (*vm->io_getchar)(vm->context);
 		if (ch == EOF) {
 			print_crlf(vm);
-			print_string(vm, "INPUT DISCONNECTED. GOODBYE.");
+			print_cstring(vm, "INPUT DISCONNECTED. GOODBYE.");
 			print_crlf(vm);
 			vm->vm_run = false;
 			return;
@@ -1518,7 +1518,7 @@ IMPL(GETLINE)
 		}
 		if (vm->lbuf_ptr == SIZE_LBUF - 1) {
 			print_crlf(vm);
-			print_string(vm, "INPUT LINE TOO LONG.");
+			print_cstring(vm, "INPUT LINE TOO LONG.");
 			print_crlf(vm);
 			vm->lbuf_ptr = 0;
 			continue;
