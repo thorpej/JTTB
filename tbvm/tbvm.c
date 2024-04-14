@@ -1071,6 +1071,11 @@ IMPL(JMP)
  * is found in the program text, report an error.
  * Move the cursor to the point following the closing
  * quote.
+ *
+ * JTTB: While PRN has been generalized in this dialect of Tiny BASIC,
+ * PRS is retained because it represents an optimization - there is no
+ * need to create (and subsequently dispose of) a string object for the
+ * (extremely) common case of printing of an immediate string.
  */
 IMPL(PRS)
 {
@@ -1090,12 +1095,29 @@ IMPL(PRS)
 }
 
 /*
- * Print number obtained by popping the top of the
+ * Print value obtained by popping the top of the
  * expression stack.
+ *
+ * JTTB: This differs from the original Tiny BASIC "PRN".
+ * The original "PRN" only printed numbers.  This has been
+ * generalized to print any "value".  However, it does
+ * remain compatible with its use in the original Tiny BASIC
+ * VM program.
  */
 IMPL(PRN)
 {
-	print_number(vm, aestk_pop_integer(vm));
+	struct value value;
+
+	aestk_pop_value(vm, VALUE_TYPE_ANY, &value);
+
+	switch (value.type) {
+	case VALUE_TYPE_INTEGER:
+		print_number(vm, value.integer);
+		break;
+
+	default:
+		vm_abort(vm, "!NO PRINTER FOR VALUE");
+	}
 }
 
 /*
