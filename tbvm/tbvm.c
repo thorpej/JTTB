@@ -170,13 +170,25 @@ static string *
 string_alloc(tbvm *vm, const char *str, size_t len)
 {
 	string *string = malloc(sizeof(*string));
-	string->str = malloc(len + 1);
-	memcpy(string->str, str, len);
-	string->str[len] = '\0';
+	string->str = calloc(1, len + 1);
+	if (str != NULL && len != 0) {
+		memcpy(string->str, str, len);
+	}
+	string->len = len;
 	string->refs = 1;
 
 	string->next = vm->strings;
 	vm->strings = string;
+
+	return string;
+}
+
+static string *
+string_concatenate(tbvm *vm, string *str1, string *str2)
+{
+	string *string = string_alloc(vm, NULL, str1->len + str2->len);
+	memcpy(string->str, str1->str, str1->len);
+	memcpy(&string->str[str1->len], str2->str, str2->len);
 
 	return string;
 }
@@ -588,6 +600,21 @@ aestk_pop_integer(tbvm *vm)
 
 	aestk_pop_value(vm, VALUE_TYPE_INTEGER, &value);
 	return value.integer;
+}
+
+static void
+aestk_push_string(tbvm *vm, string *string)
+{
+	/*
+	 * N.B. AESTK now owns the caller's reference.  When
+	 * a string is popped from AESTK, the reference ownership
+	 * is transferred back to the caller.
+	 */
+	struct value value = {
+		.type = VALUE_TYPE_STRING,
+		.string = string,
+	};
+	aestk_push_value(vm, &value);
 }
 
 static void
@@ -1311,12 +1338,30 @@ IMPL(ERR)
 
 /*
  * Replace top two elements of AESTK by their sum.
+ *
+ * JTTB: This routine has been extended to also perform
+ * string object concatenation.
  */
 IMPL(ADD)
 {
-	int num2 = aestk_pop_integer(vm);
-	int num1 = aestk_pop_integer(vm);
-	aestk_push_integer(vm, num1 + num2);
+	struct value val1, val2;
+
+	aestk_pop_value(vm, VALUE_TYPE_ANY, &val2);
+	aestk_pop_value(vm, VALUE_TYPE_ANY, &val1);
+
+	if (val1.type != val2.type) {
+		basic_wrong_type_error(vm);
+	}
+
+	if (val1.type != VALUE_TYPE_STRING) {
+		aestk_push_integer(vm, val1.integer + val2.integer);
+	} else {
+		string *string = string_concatenate(vm,
+		    val1.string, val2.string);
+		aestk_push_string(vm, string);
+		string_release(vm, val1.string);
+		string_release(vm, val2.string);
+	}
 }
 
 /*
@@ -1750,6 +1795,39 @@ IMPL(TSTEOL)
 	}
 }
 
+/*
+ * Skip whitespace and then test to see if the cursor is pointing
+ * at a string.  If so, create a string object and push it onto
+ * the AESTK.  If not, branch to the label.
+ */
+IMPL(TSTS)
+{
+	int label = get_label(vm);
+	int i;
+	string *string;
+
+	skip_whitespace(vm);
+	if (peek_linebyte(vm, 0) != DQUOTE) {
+		vm->pc = label;
+		return;
+	}
+
+	advance_cursor(vm, 1);		/* advance past DQUOTE */
+
+	/* Find the end of the string. */
+	for (i = 0; peek_linebyte(vm, i) != DQUOTE; i++) {
+		if (peek_linebyte(vm, i) == END_OF_LINE) {
+			basic_syntax_error(vm);
+		}
+	}
+
+	/* Create the string object and push it onto the stack. */
+	string = string_alloc(vm, &vm->lbuf[vm->lbuf_ptr], i);
+	aestk_push_string(vm, string);
+
+	advance_cursor(vm, i + 1);	/* advance past DQUOTE */
+}
+
 #undef IMPL
 
 #define	OPC(x)	[OPC_ ## x] = OPC_ ## x ## _impl
@@ -1801,6 +1879,7 @@ static opc_impl_func_t opc_impls[OPC___COUNT] = {
 	OPC(RND),
 	OPC(ABS),
 	OPC(TSTEOL),
+	OPC(TSTS),
 };
 
 #undef OPC

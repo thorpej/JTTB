@@ -80,8 +80,9 @@
 #define	OPC_RND		41	/* JTTB addition */
 #define	OPC_ABS		42	/* JTTB addition */
 #define	OPC_TSTEOL	43	/* JTTB addition */
+#define	OPC_TSTS	44	/* JTTB addition */
 
-#define	OPC___LAST	OPC_TSTEOL
+#define	OPC___LAST	OPC_TSTS
 #define	OPC___COUNT	(OPC___LAST + 1)
 
 #define	OPC_F_LABEL	0x01

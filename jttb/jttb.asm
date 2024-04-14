@@ -116,8 +116,8 @@ notGO:
 	;               printitem |
 	;               printitem separator printlist
 	;
-	; printitem ::= expression
-	;               "characterstring"
+	; printitem ::= "characterstring"
+	;               expression
 	;
 	; separator ::= ,
 	;               ;
@@ -299,6 +299,7 @@ Serr:	ERR			; Syntax error.
 ;
 ; factor ::= function
 ;            var
+;            "characterstring"
 ;            number
 ;            ( expression )
 ;
@@ -385,16 +386,18 @@ notABS:
 	IND			; Yes, get the value.
 	RTN
 
-F0:	TSTN	F1		; Number?  Get it's value.
+F0:	TSTS	F1		; String?  Push it onto the stack.
 	RTN
 
-F1:	TST	F2,'('		; Parenthesized expression?
+F1:	TSTN	F2		; Number?  Push it onto the stack.
+	RTN
+
+F2:	TST	F3,'('		; Parenthesized expression?
 	CALL	EXPR		; Go evaluate it.
 	TST	F2,')'
 	RTN
 
-F2:	ERR			; Syntax error.
-
+F3:	ERR			; Syntax error.
 
 ;
 ; *** Relational operations

@@ -143,6 +143,7 @@ const struct opcode opcode_tab[] = {
 	{ "RND",	OPC_RND,	0 },
 	{ "ABS",	OPC_ABS,	0 },
 	{ "TSTEOL",	OPC_TSTEOL,	OPC_F_LABEL },
+	{ "TSTS",	OPC_TSTS,	OPC_F_LABEL },
 
 	{ NULL,		0,		0 },
 };
