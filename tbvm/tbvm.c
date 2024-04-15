@@ -267,11 +267,6 @@ string_freeall(tbvm *vm)
 		vm->strings = string->next;
 		string_free(vm, string);
 	}
-	for (int i = SVAR_BASE; i < NUM_VARS; i++) {
-		if (vm->vars[i].type == VALUE_TYPE_STRING) {
-			string_free(vm, vm->vars[i].string);
-		}
-	}
 }
 
 static void
