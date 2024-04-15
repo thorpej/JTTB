@@ -49,7 +49,10 @@
 
 #define	DOES_NOT_RETURN	__attribute__((__noreturn__))
 
-#define	NUM_VARS	26	/* A - Z */
+#define	NUM_NVARS	26	/* A - Z */
+#define	NUM_SVARS	26	/* A$ - Z$ */
+#define	NUM_VARS	(NUM_NVARS + NUM_SVARS)
+#define	SVAR_BASE	NUM_NVARS
 #define	SIZE_CSTK	64	/* control stack size */
 #define	SIZE_SBRSTK	64	/* subroutine stack size */
 #define	SIZE_AESTK	64	/* expression stack size */
@@ -166,12 +169,22 @@ struct tbvm {
 	int		lpstk_ptr;
 };
 
+static char empty_string_str[1] = { 0 };
+static struct string empty_string = {
+	.str = empty_string_str,
+	.len = 0,
+};
+
 static string *
 string_alloc(tbvm *vm, const char *str, size_t len)
 {
+	if (len == 0) {
+		return &empty_string;
+	}
+
 	string *string = malloc(sizeof(*string));
 	string->str = calloc(1, len + 1);
-	if (str != NULL && len != 0) {
+	if (str != NULL) {
 		memcpy(string->str, str, len);
 	}
 	string->len = len;
@@ -196,24 +209,31 @@ string_concatenate(tbvm *vm, string *str1, string *str2)
 static void
 string_free(tbvm *vm, string *string)
 {
-	free(string->str);
-	free(string);
+	if (string != &empty_string) {
+		free(string->str);
+		free(string);
+	}
 }
 
-static void
+static string *
 string_retain(tbvm *vm, string *string)
 {
-	string->refs++;
-	assert(string->refs != 0);
+	if (string != &empty_string) {
+		string->refs++;
+		assert(string->refs != 0);
+	}
+	return string;
 }
 
 static void
 string_release(tbvm *vm, string *string)
 {
-	assert(string->refs != 0);
-	string->refs--;
-	if (string->refs == 0) {
-		vm->strings_need_gc = true;
+	if (string != &empty_string) {
+		assert(string->refs != 0);
+		string->refs--;
+		if (string->refs == 0) {
+			vm->strings_need_gc = true;
+		}
 	}
 }
 
@@ -246,6 +266,11 @@ string_freeall(tbvm *vm)
 	while ((string = vm->strings) != NULL) {
 		vm->strings = string->next;
 		string_free(vm, string);
+	}
+	for (int i = SVAR_BASE; i < NUM_VARS; i++) {
+		if (vm->vars[i].type == VALUE_TYPE_STRING) {
+			string_free(vm, vm->vars[i].string);
+		}
 	}
 }
 
@@ -608,7 +633,9 @@ aestk_push_string(tbvm *vm, string *string)
 	/*
 	 * N.B. AESTK now owns the caller's reference.  When
 	 * a string is popped from AESTK, the reference ownership
-	 * is transferred back to the caller.
+	 * is transferred back to the caller.  If the caller
+	 * needs an additional reference, it is responsible for
+	 * taking it.
 	 */
 	struct value value = {
 		.type = VALUE_TYPE_STRING,
@@ -678,7 +705,13 @@ lpstk_pop(tbvm *vm, int var, struct loop *l_store, bool pop_match)
 static void
 var_init(tbvm *vm)
 {
+	for (int i = SVAR_BASE; i < NUM_VARS; i++) {
+		if (vm->vars[i].type == VALUE_TYPE_STRING) {
+			string_release(vm, vm->vars[i].string);
+		}
+	}
 	memset(vm->vars, 0, sizeof(vm->vars));
+	string_gc(vm);
 }
 
 static struct value *
@@ -694,6 +727,12 @@ static int
 var_get_integer(tbvm *vm, int idx)
 {
 	struct value *slot = var_slot(vm, idx);
+	if (idx >= SVAR_BASE) {
+		vm_abort(vm, "!BAD VAR INDEX");
+	}
+	if (slot->type != VALUE_TYPE_INTEGER) {
+		return 0;
+	}
 	return slot->integer;
 }
 
@@ -701,7 +740,38 @@ static int
 var_set_integer(tbvm *vm, int idx, int val)
 {
 	struct value *slot = var_slot(vm, idx);
+	if (idx >= SVAR_BASE) {
+		vm_abort(vm, "!BAD VAR INDEX");
+	}
+	slot->type = VALUE_TYPE_INTEGER;
 	return (slot->integer = val);
+}
+
+static void
+var_get_value(tbvm *vm, int idx, struct value *valp)
+{
+	struct value *slot = var_slot(vm, idx);
+	if (idx >= SVAR_BASE && slot->type != VALUE_TYPE_STRING) {
+		valp->type = VALUE_TYPE_STRING;
+		valp->string = &empty_string;
+	} else {
+		*valp = *slot;
+	}
+}
+
+static void
+var_set_value(tbvm *vm, int idx, const struct value *valp)
+{
+	struct value *slot = var_slot(vm, idx);
+
+	if (idx >= SVAR_BASE) {
+		if (valp->type != VALUE_TYPE_STRING) {
+			basic_wrong_type_error(vm);
+		}
+	} else if (valp->type != VALUE_TYPE_INTEGER) {
+		basic_wrong_type_error(vm);
+	}
+	*slot = *valp;
 }
 
 /*********** Default I/O routines **********/
@@ -1453,9 +1523,13 @@ IMPL(MOD)
  */
 IMPL(STORE)
 {
-	int val = aestk_pop_integer(vm);
-	int var = aestk_pop_varref(vm);
-	var_set_integer(vm, var, val);
+	struct value value;
+	int var;
+
+	aestk_pop_value(vm, VALUE_TYPE_ANY, &value);
+	var = aestk_pop_varref(vm);
+
+	var_set_value(vm, var, &value);
 }
 
 /*
@@ -1466,13 +1540,20 @@ IMPL(STORE)
 IMPL(TSTV)
 {
 	int label = get_label(vm);
+	int var;
 	char c;
 
 	skip_whitespace(vm);
 	c = peek_linebyte(vm, 0);
 	if (c >= 'A' && c <= 'Z') {
 		advance_cursor(vm, 1);
-		aestk_push_varref(vm, c - 'A');
+		var = c - 'A';
+		c = peek_linebyte(vm, 0);
+		if (c == '$') {
+			advance_cursor(vm, 1);
+			var += SVAR_BASE;
+		}
+		aestk_push_varref(vm, var);
 	} else {
 		vm->pc = label;
 	}
@@ -1526,7 +1607,13 @@ IMPL(TSTN)
 IMPL(IND)
 {
 	int var = aestk_pop_varref(vm);
-	aestk_push_integer(vm, var_get_integer(vm, var));
+	struct value value;
+
+	var_get_value(vm, var, &value);
+	if (value.type == VALUE_TYPE_STRING) {
+		string_retain(vm, value.string);
+	}
+	aestk_push_value(vm, &value);
 }
 
 /*
