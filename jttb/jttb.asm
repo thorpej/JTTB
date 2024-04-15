@@ -68,9 +68,13 @@
 ;
 ; ==> Added a HEX() function using a new HEX VM insn.
 ;
+; ==> PRINT no longer directly processes immediate strings; all PRINTs
+;     now evaluate expressions (including expressions with strings).
+;
 ;
 ; Original Tiny BASIC VM opcodes that are no longer used:
 ; ==> CMPR (replaced by CMPRX)
+; ==> PRS (PRN can how handle any expression, including with strings)
 ;
 
 ;
@@ -126,12 +130,8 @@ notGO:
 	; PRINT printlist
 	;
 	; printlist ::=
-	;               printitem
-	;               printitem |
-	;               printitem separator printlist
-	;
-	; printitem ::= "characterstring"
 	;               expression
+	;               expression separator printlist
 	;
 	; separator ::= ,
 	;               ;
@@ -153,27 +153,23 @@ PREOLsep:
 	TSTEOL	PR1		; Test for EOL.
 	NXT			; Next statement.
 
-PR1:	TST	PR2,'"'		; Test for quote.
-	PRS			; Yes, print string.
-	JMP	PRchecksep	; Go check for a separator.
-
-PR2:	CALL	EXPR		; Get expression.
+PR1:	CALL	EXPR		; Get expression.
 	PRN			; Print value.
 	; FALLTHROUGH
 
 PRchecksep:
-	TST	PR3,','		; Test for comma separator.
+	TST	PR2,','		; Test for comma separator.
 	SPC			; Advance print head.
 	JMP	PREOLsep	; Check for EOL and maybe process more.
 
-PR3:	TST	PR4,';'		; Test for semicolon separator.
+PR2:	TST	PR3,';'		; Test for semicolon separator.
 	JMP	PREOLsep	; Check for EOL and maybe process more.
 
 	;
 	; We've processed arguments and there is no separator; this means
 	; we are done and that a newline should be printed.
 	;
-PR4:	DONE			; End of statement.
+PR3:	DONE			; End of statement.
 	NLINE			; Print newline.
 	NXT			; Next statement.
 notPRINT:
