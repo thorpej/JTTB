@@ -58,6 +58,12 @@
 ; ==> Make the PRINT statement more like MS BASIC's, using the new
 ;     TSTEOL VM insn.
 ;
+; ==> Strings can now be part of expressions.  The VM does the requisite
+;     type checking.
+;
+; ==> String variables are supported (e.g. A$ - Z$).  They occupy a separate
+;     variable namespace than numeric variables.
+;
 
 ;
 ; *** Main entry point
