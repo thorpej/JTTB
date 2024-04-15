@@ -82,6 +82,7 @@ typedef struct string {
 	struct string *next;
 	char *str;
 	size_t len;
+	int lineno;
 } string;
 
 struct value {
@@ -144,6 +145,7 @@ struct tbvm {
 
 	string		*strings;
 	bool		strings_need_gc;
+	bool		static_strings_valid;
 
 	void		*context;
 	int		(*io_getchar)(void *);
@@ -176,18 +178,29 @@ static struct string empty_string = {
 };
 
 static string *
-string_alloc(tbvm *vm, const char *str, size_t len)
+string_alloc(tbvm *vm, char *str, size_t len, int lineno)
 {
 	if (len == 0) {
 		return &empty_string;
 	}
 
 	string *string = malloc(sizeof(*string));
-	string->str = calloc(1, len + 1);
-	if (str != NULL) {
-		memcpy(string->str, str, len);
+	if (lineno) {
+		/*
+		 * This is a static string; just directly reference
+		 * the program text.
+		 */
+		string->str = str;
+		string->len = len;
+		vm->static_strings_valid = true;
+	} else {
+		string->str = calloc(1, len + 1);
+		if (str != NULL) {
+			memcpy(string->str, str, len);
+		}
 	}
 	string->len = len;
+	string->lineno = lineno;
 	string->refs = 1;
 
 	string->next = vm->strings;
@@ -199,7 +212,7 @@ string_alloc(tbvm *vm, const char *str, size_t len)
 static string *
 string_concatenate(tbvm *vm, string *str1, string *str2)
 {
-	string *string = string_alloc(vm, NULL, str1->len + str2->len);
+	string *string = string_alloc(vm, NULL, str1->len + str2->len, 0);
 	memcpy(string->str, str1->str, str1->len);
 	memcpy(&string->str[str1->len], str2->str, str2->len);
 
@@ -207,10 +220,28 @@ string_concatenate(tbvm *vm, string *str1, string *str2)
 }
 
 static void
+string_invalidate_all_static(tbvm *vm)
+{
+	if (vm->static_strings_valid) {
+		string *string;
+
+		for (string = vm->strings; string != NULL;
+		     string = string->next) {
+			if (string->lineno) {
+				string->str = empty_string_str;
+			}
+		}
+		vm->static_strings_valid = false;
+	}
+}
+
+static void
 string_free(tbvm *vm, string *string)
 {
 	if (string != &empty_string) {
-		free(string->str);
+		if (string->lineno == 0) {
+			free(string->str);
+		}
 		free(string);
 	}
 }
@@ -938,6 +969,7 @@ insert_line(tbvm *vm, int lineno)
 	}
 	vm->progstore[i] = cp;
 	update_bookends(vm, lineno, cp);
+	string_invalidate_all_static(vm);
 }
 
 static void
@@ -1958,7 +1990,7 @@ IMPL(TSTS)
 	}
 
 	/* Create the string object and push it onto the stack. */
-	string = string_alloc(vm, &vm->lbuf[vm->lbuf_ptr], i);
+	string = string_alloc(vm, &vm->lbuf[vm->lbuf_ptr], i, vm->lineno);
 	aestk_push_string(vm, string);
 
 	advance_cursor(vm, i + 1);	/* advance past DQUOTE */
@@ -1969,7 +2001,7 @@ num_to_string(tbvm *vm, int base)
 {
 	int num = aestk_pop_integer(vm);
 	int width = printed_number_width(num, base);
-	string *string = string_alloc(vm, NULL, width);
+	string *string = string_alloc(vm, NULL, width, 0);
 	char *cp = format_number(num, base, 0, string->str, width);
 	assert(cp == string->str);
 	aestk_push_string(vm, string);
