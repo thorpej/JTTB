@@ -394,8 +394,18 @@ vm_abort(tbvm *vm, const char *msg)
 }
 
 static void
+reset_stacks(tbvm *vm)
+{
+	vm->cstk_ptr = 0;
+	vm->sbrstk_ptr = 0;
+	vm->aestk_ptr = 0;
+}
+
+static void
 direct_mode(tbvm *vm, int ptr)
 {
+	reset_stacks(vm);
+
 	vm->direct = true;
 	vm->pc = vm->collector_pc;
 	vm->lineno = 0;
@@ -970,9 +980,7 @@ init_vm(tbvm *vm)
 	progstore_init(vm);
 	var_init(vm);
 
-	vm->cstk_ptr = 0;
-	vm->sbrstk_ptr = 0;
-	vm->aestk_ptr = 0;
+	reset_stacks(vm);
 
 	vm->lbuf = vm->direct_lbuf;
 	vm->lbuf_ptr = 0;
@@ -1626,6 +1634,16 @@ IMPL(IND)
 	struct value value;
 
 	var_get_value(vm, var, &value);
+
+	if (value.type == VALUE_TYPE_ANY) {
+		/* Uninitialized variable. */
+		if (var >= SVAR_BASE) {
+			aestk_push_string(vm, &empty_string);
+		} else {
+			aestk_push_integer(vm, 0);
+		}
+		return;
+	}
 	if (value.type == VALUE_TYPE_STRING) {
 		string_retain(vm, value.string);
 	}
