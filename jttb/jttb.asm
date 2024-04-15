@@ -68,6 +68,10 @@
 ;
 ; ==> Added a HEX() function using a new HEX VM insn.
 ;
+;
+; Original Tiny BASIC VM opcodes that are no longer used:
+; ==> CMPR (replaced by CMPRX)
+;
 
 ;
 ; *** Main entry point
