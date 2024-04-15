@@ -71,10 +71,14 @@
 ; ==> PRINT no longer directly processes immediate strings; all PRINTs
 ;     now evaluate expressions (including expressions with strings).
 ;
+; ==> The LIST statement now optionally takes line number ranges.  This
+;     is implemented using the new CPY and LSTX VM insns.
+;
 ;
 ; Original Tiny BASIC VM opcodes that are no longer used:
 ; ==> CMPR (replaced by CMPRX)
 ; ==> PRS (PRN can how handle any expression, including with strings)
+; ==> LST (replaced by LSTX)
 ;
 
 ;
@@ -255,11 +259,36 @@ notEND:
 
 	;
 	; LIST
+	; LIST line
+	; LIST firstline -
+	; LIST - lastline
+	; LIST firstline - lastline
+	;
+	; N.B. These are NOT expressions!  Only numbers are allowed.
 	;
 	TST	notLIST,'LIST'	; LIST command?
-	DONE			; Yes, end of statement.
-	LST			; Go do it.
+	TSTEOL	LST1		; Check for arguments.
+	LIT	0		; No arguments, pass 0,0 to indicate whole
+	LIT	0		; program.
+LST99:	DONE			; End of statement.
+	LSTX			; Go do it.
 	NXT			; Next statement.
+
+LST1:	TSTN	LST4		; Check for first line number.
+LST5:	TST	LST3,'-'	; Check for range separator.
+	TSTN	LST2		; Check for last line number.
+	JMP	LST99		; Go do it.
+
+LST2:				; No last line number
+	LIT	0		; Pass 0 to indicate end-of-program.
+	JMP	LST99		; Go do it.
+
+LST3:				; No range separator
+	CPY			; Copy first line to last line.
+	JMP	LST99		; Go do it.
+
+LST4:	LIT	0		; No first line, push 0.
+	JMP	LST5		; Go check for additional arguments.
 notLIST:
 
 	;

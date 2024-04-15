@@ -973,7 +973,7 @@ insert_line(tbvm *vm, int lineno)
 }
 
 static void
-list_program(tbvm *vm)
+list_program(tbvm *vm, int firstline, int lastline)
 {
 	int i, width;
 	char *cp;
@@ -985,8 +985,20 @@ list_program(tbvm *vm)
 		assert(vm->last_line >= vm->first_line);
 	}
 
-	width = printed_number_width(vm->last_line, 10);
-	for (i = vm->first_line - 1; i < vm->last_line; i++) {
+	if (firstline < vm->first_line) {
+		firstline = vm->first_line;
+	}
+
+	if (lastline == 0 || lastline > vm->last_line) {
+		lastline = vm->last_line;
+	}
+
+	if (firstline > lastline) {
+		basic_syntax_error(vm);
+	}
+
+	width = printed_number_width(lastline, 10);
+	for (i = firstline - 1; i < lastline; i++) {
 		if (vm->progstore[i] == NULL) {
 			continue;
 		}
@@ -1704,7 +1716,18 @@ IMPL(IND)
  */
 IMPL(LST)
 {
-	list_program(vm);
+	list_program(vm, 0, 0);
+}
+
+/*
+ * List the contents of the program area, range specified.
+ */
+IMPL(LSTX)
+{
+	int lastline = aestk_pop_integer(vm);
+	int firstline = aestk_pop_integer(vm);
+
+	list_program(vm, firstline, lastline);
 }
 
 /*
@@ -2073,6 +2096,18 @@ IMPL(VAL)
 	aestk_push_integer(vm, val);
 }
 
+/*
+ * Copy the value at the top of AESTK and push the copy.
+ */
+IMPL(CPY)
+{
+	struct value value;
+
+	aestk_pop_value(vm, VALUE_TYPE_ANY, &value);
+	aestk_push_value(vm, &value);
+	aestk_push_value(vm, &value);
+}
+
 #undef IMPL
 
 #define	OPC(x)	[OPC_ ## x] = OPC_ ## x ## _impl
@@ -2128,6 +2163,8 @@ static opc_impl_func_t opc_impls[OPC___COUNT] = {
 	OPC(STR),
 	OPC(VAL),
 	OPC(HEX),
+	OPC(CPY),
+	OPC(LSTX),
 };
 
 #undef OPC

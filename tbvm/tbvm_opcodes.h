@@ -86,8 +86,10 @@
 #define	OPC_STR		45
 #define	OPC_VAL		46
 #define	OPC_HEX		47
+#define	OPC_CPY		48
+#define	OPC_LSTX	49
 
-#define	OPC___LAST	OPC_HEX
+#define	OPC___LAST	OPC_LSTX
 #define	OPC___COUNT	(OPC___LAST + 1)
 
 #define	OPC_F_LABEL	0x01

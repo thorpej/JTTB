@@ -147,6 +147,8 @@ const struct opcode opcode_tab[] = {
 	{ "STR",	OPC_STR,	0 },
 	{ "VAL",	OPC_VAL,	0 },
 	{ "HEX",	OPC_HEX,	0 },
+	{ "CPY",	OPC_CPY,	0 },
+	{ "LSTX",	OPC_LSTX,	0 },
 
 	{ NULL,		0,		0 },
 };
