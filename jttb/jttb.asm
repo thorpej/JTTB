@@ -373,41 +373,31 @@ FACT:
 	; letter of a function name would match a variable.
 	;
 	TST	notRND,'RND'	; RND() function?
-	TST	Serr,'('
-	CALL	EXPR		; Get range expression.
-	TST	Serr,')'
+	CALL	FUNC1ARG
 	RND
 	RTN
 notRND:
 
 	TST	notABS,'ABS'	; ABS() function?
-	TST	Serr,'('
-	CALL	EXPR		; Get expression.
-	TST	Serr,')'
+	CALL	FUNC1ARG
 	ABS
 	RTN
 notABS:
 
 	TST	notVAL,'VAL'	; VAL() function?
-	TST	Serr,'('
-	CALL	EXPR		; Get expression.
-	TST	Serr,')'
+	CALL	FUNC1ARG
 	VAL
 	RTN
 notVAL:
 
 	TST	notSTR,'STR$'	; STR$() function?
-	TST	Serr,'('
-	CALL	EXPR		; Get expression.
-	TST	Serr,')'
+	CALL	FUNC1ARG
 	STR
 	RTN
 notSTR:
 
 	TST	notHEX,'HEX$'	; HEX$() function?
-	TST	Serr,'('
-	CALL	EXPR		; Get expression.
-	TST	Serr,')'
+	CALL	FUNC1ARG
 	HEX
 	RTN
 notHEX:
@@ -422,6 +412,11 @@ F0:	TSTS	F1		; String?  Push it onto the stack.
 F1:	TSTN	F2		; Number?  Push it onto the stack.
 	RTN
 
+FUNC1ARG:
+	;
+	; The the argument for a 1-argument function.  This is exactly
+	; the same as processing a parenthesized expression.
+	;
 F2:	TST	F3,'('		; Parenthesized expression?
 	CALL	EXPR		; Go evaluate it.
 	TST	F2,')'
