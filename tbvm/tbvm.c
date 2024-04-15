@@ -2108,6 +2108,79 @@ IMPL(CPY)
 	aestk_push_value(vm, &value);
 }
 
+/*
+ * Return the length of the string on the AESTK.
+ */
+IMPL(STRLEN)
+{
+	string *string = aestk_pop_string(vm);
+	aestk_push_integer(vm, string->len);
+	string_release(vm, string);
+}
+
+/*
+ * Pop the string at the top of AESTK and return the ASCII code for
+ * the first character.
+ */
+IMPL(ASC)
+{
+	string *string = aestk_pop_string(vm);
+	int val;
+
+	if (string->len == 0) {
+		val = 0;
+	} else {
+		val = string->str[0];
+	}
+	aestk_push_integer(vm, val);
+	string_release(vm, string);
+}
+
+/*
+ * Pops the ASCII code from the AESTK and returns it as a character string.
+ */
+IMPL(CHR)
+{
+	int code = aestk_pop_integer(vm);
+	string *string = string_alloc(vm, NULL, 1, 0);
+	string->str[0] = (char)code;
+	aestk_push_string(vm, string);
+}
+
+/*
+ * Pops the number value from the AESTK, converts it to an integer, and
+ * pushes the result.
+ */
+IMPL(INTVAL)
+{
+	/*
+	 * This is extremely easy since we only currently support
+	 * integer numbers.
+	 */
+	int val = aestk_pop_integer(vm);	/* acts as type check */
+	aestk_push_integer(vm, val);
+}
+
+/*
+ * Pops the number value from the AESTK, checks its sign, and pushes
+ * a value indicating the sign.
+ *
+ * - negative -> -1
+ * - zero -> 0
+ * - positive -> 1
+ */
+IMPL(SGN)
+{
+	int val = aestk_pop_integer(vm);
+
+	if (val < 0) {
+		val = -1;
+	} else if (val > 0) {
+		val = 1;
+	}
+	aestk_push_integer(vm, val);
+}
+
 #undef IMPL
 
 #define	OPC(x)	[OPC_ ## x] = OPC_ ## x ## _impl
@@ -2165,6 +2238,11 @@ static opc_impl_func_t opc_impls[OPC___COUNT] = {
 	OPC(HEX),
 	OPC(CPY),
 	OPC(LSTX),
+	OPC(STRLEN),
+	OPC(ASC),
+	OPC(CHR),
+	OPC(INTVAL),
+	OPC(SGN),
 };
 
 #undef OPC

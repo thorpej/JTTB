@@ -68,13 +68,23 @@
 ;
 ; ==> Added a VAL() function using a new VAL VM insn.
 ;
-; ==> Added a HEX() function using a new HEX VM insn.
+; ==> Added a HEX$() function using a new HEX VM insn.
 ;
 ; ==> PRINT no longer directly processes immediate strings; all PRINTs
 ;     now evaluate expressions (including expressions with strings).
 ;
 ; ==> The LIST statement now optionally takes line number ranges.  This
 ;     is implemented using the new CPY and LSTX VM insns.
+;
+; ==> Added a LEN() function using a new STRLEN VM insn.
+;
+; ==> Added an ASC() fuction using a new ASC VM insn.
+;
+; ==> Added a CHR$() function using a new CHR VM insn.
+;
+; ==> Added an INT() function using a new INTVAL VM insn.
+;
+; ==> Added a SGN() function using a new SGN VM insn.
 ;
 ;
 ; Original Tiny BASIC VM opcodes that are no longer used:
@@ -419,11 +429,41 @@ notRND:
 	RTN
 notABS:
 
+	TST	notASC,'ASC'	; ASC() function?
+	CALL	FUNC1ARG
+	ASC
+	RTN
+notASC:
+
 	TST	notVAL,'VAL'	; VAL() function?
 	CALL	FUNC1ARG
 	VAL
 	RTN
 notVAL:
+
+	TST	notLEN,'LEN'	; LEN() function?
+	CALL	FUNC1ARG
+	STRLEN
+	RTN
+notLEN:
+
+	TST	notINT,'INT'	; INT() function?
+	CALL	FUNC1ARG
+	INTVAL
+	RTN
+notINT:
+
+	TST	notSGN,'SGN'	; SGN() function?
+	CALL	FUNC1ARG
+	SGN
+	RTN
+notSGN:
+
+	TST	notCHR,'CHR$'	; CHR$() function?
+	CALL	FUNC1ARG
+	CHR
+	RTN
+notCHR:
 
 	TST	notSTR,'STR$'	; STR$() function?
 	CALL	FUNC1ARG

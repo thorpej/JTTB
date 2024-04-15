@@ -88,8 +88,13 @@
 #define	OPC_HEX		47
 #define	OPC_CPY		48
 #define	OPC_LSTX	49
+#define	OPC_STRLEN	50
+#define	OPC_ASC		51
+#define	OPC_CHR		52
+#define	OPC_INTVAL	53
+#define	OPC_SGN		54
 
-#define	OPC___LAST	OPC_LSTX
+#define	OPC___LAST	OPC_SGN
 #define	OPC___COUNT	(OPC___LAST + 1)
 
 #define	OPC_F_LABEL	0x01
