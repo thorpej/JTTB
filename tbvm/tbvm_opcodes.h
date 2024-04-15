@@ -69,20 +69,23 @@
 #define	OPC_TSTL	30
 #define	OPC_INSRT	31
 #define	OPC_XINIT	32
-#define	OPC_RUN		33	/* JTTB addition */
-#define	OPC_EXIT	34	/* JTTB addition */
-#define	OPC_CMPRX	35	/* JTTB addition */
-#define	OPC_FOR		36	/* JTTB addition */
-#define	OPC_STEP	37	/* JTTB addition */
-#define	OPC_NXTFOR	38	/* JTTB addition */
-#define	OPC_MOD		39	/* JTTB addition */
-#define	OPC_EXP		40	/* JTTB addition */
-#define	OPC_RND		41	/* JTTB addition */
-#define	OPC_ABS		42	/* JTTB addition */
-#define	OPC_TSTEOL	43	/* JTTB addition */
-#define	OPC_TSTS	44	/* JTTB addition */
 
-#define	OPC___LAST	OPC_TSTS
+/* JTTB additions */
+#define	OPC_RUN		33
+#define	OPC_EXIT	34
+#define	OPC_CMPRX	35
+#define	OPC_FOR		36
+#define	OPC_STEP	37
+#define	OPC_NXTFOR	38
+#define	OPC_MOD		39
+#define	OPC_EXP		40
+#define	OPC_RND		41
+#define	OPC_ABS		42
+#define	OPC_TSTEOL	43
+#define	OPC_TSTS	44
+#define	OPC_STR		45
+
+#define	OPC___LAST	OPC_STR
 #define	OPC___COUNT	(OPC___LAST + 1)
 
 #define	OPC_F_LABEL	0x01

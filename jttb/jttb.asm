@@ -388,6 +388,14 @@ notRND:
 	RTN
 notABS:
 
+	TST	notSTR,'STR$'	; STR$() function?
+	TST	Serr,'('
+	CALL	EXPR		; Get expression.
+	TST	Serr,')'
+	STR
+	RTN
+notSTR:
+
 	TSTV	F0		; Variable?
 	IND			; Yes, get the value.
 	RTN

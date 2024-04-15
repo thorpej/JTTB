@@ -1919,6 +1919,20 @@ IMPL(TSTS)
 	advance_cursor(vm, i + 1);	/* advance past DQUOTE */
 }
 
+/*
+ * Replace the numeric value on the AESTK with a string representation
+ * of that number.
+ */
+IMPL(STR)
+{
+	int num = aestk_pop_integer(vm);
+	int width = printed_number_width(num);
+	string *string = string_alloc(vm, NULL, width);
+	char *cp = format_number(num, 0, string->str, width);
+	assert(cp == string->str);
+	aestk_push_string(vm, string);
+}
+
 #undef IMPL
 
 #define	OPC(x)	[OPC_ ## x] = OPC_ ## x ## _impl
@@ -1971,6 +1985,7 @@ static opc_impl_func_t opc_impls[OPC___COUNT] = {
 	OPC(ABS),
 	OPC(TSTEOL),
 	OPC(TSTS),
+	OPC(STR),
 };
 
 #undef OPC
