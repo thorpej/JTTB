@@ -323,18 +323,11 @@ printed_number_width(int num)
 	return width;
 }
 
-static void
-print_number_justified(tbvm *vm, int num, int width)
+static char *
+format_number(int num, int width, char *buf, size_t bufsize)
 {
-	/*
-	 * Largest integer number is "2147483647", which is 10
-	 * digits.  Allow an extra byte for "-" in case it's
-	 * negative.
-	 */
-#define	PRN_BUFSIZE	11
 	bool negative_p = num < 0;
-	char buf[PRN_BUFSIZE];
-	char *cp = &buf[PRN_BUFSIZE];
+	char *cp = &buf[bufsize];
 	int digits = 0;
 
 	if (negative_p) {
@@ -353,8 +346,8 @@ print_number_justified(tbvm *vm, int num, int width)
 	}
 
 	if (width != 0) {
-		if (width > PRN_BUFSIZE) {
-			width = PRN_BUFSIZE;
+		if (width > bufsize) {
+			width = bufsize;
 		}
 		while (digits < width) {
 			*--cp = ' ';
@@ -362,6 +355,22 @@ print_number_justified(tbvm *vm, int num, int width)
 		}
 	}
 
+	return cp;
+}
+
+static void
+print_number_justified(tbvm *vm, int num, int width)
+{
+	/*
+	 * Largest integer number is "2147483647", which is 10
+	 * digits.  Allow an extra byte for "-" in case it's
+	 * negative.
+	 */
+#define	PRN_BUFSIZE	11
+	char buf[PRN_BUFSIZE];
+	char *cp;
+
+	cp = format_number(num, width, buf, sizeof(buf));
 	print_strbuf(vm, cp, &buf[PRN_BUFSIZE] - cp);
 }
 
