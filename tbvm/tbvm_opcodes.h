@@ -84,8 +84,9 @@
 #define	OPC_TSTEOL	43
 #define	OPC_TSTS	44
 #define	OPC_STR		45
+#define	OPC_VAL		46
 
-#define	OPC___LAST	OPC_STR
+#define	OPC___LAST	OPC_VAL
 #define	OPC___COUNT	(OPC___LAST + 1)
 
 #define	OPC_F_LABEL	0x01

@@ -648,6 +648,15 @@ aestk_push_string(tbvm *vm, string *string)
 	aestk_push_value(vm, &value);
 }
 
+static string *
+aestk_pop_string(tbvm *vm)
+{
+	struct value value;
+
+	aestk_pop_value(vm, VALUE_TYPE_STRING, &value);
+	return value.string;
+}
+
 static void
 aestk_push_varref(tbvm *vm, int var)
 {
@@ -794,14 +803,17 @@ default_putchar(void *v, int c)
 
 /*********** Program execution helper routines **********/
 
+static bool
+whitespace_p(char c)
+{
+	return c == ' ' || c == '\t';
+}
+
 static void
 skip_whitespace(tbvm *vm)
 {
-	char c;
-
 	for (;;) {
-		c = vm->lbuf[vm->lbuf_ptr];
-		if (c == ' ' || c == '\t') {
+		if (whitespace_p(vm->lbuf[vm->lbuf_ptr])) {
 			vm->lbuf_ptr++;
 		} else {
 			return;
@@ -1933,6 +1945,52 @@ IMPL(STR)
 	aestk_push_string(vm, string);
 }
 
+/*
+ * Replace the string object on the AESTK with a numeric representation.
+ */
+IMPL(VAL)
+{
+	string *string = aestk_pop_string(vm);
+	char *cp = string->str;
+	char *ecp = string->str + string->len;
+	int val = 0;
+	bool negative_p = false;
+
+	/* skip leading whitespace */
+	while (cp < ecp) {
+		if (whitespace_p(*cp)) {
+			cp++;
+		} else {
+			break;
+		}
+	}
+
+	/* handle unary + / - */
+	if (cp < ecp) {
+		if (*cp == '+') {
+			cp++;
+		} else if (*cp == '-') {
+			negative_p = true;
+			cp++;
+		}
+	}
+
+	/* parse the digits */
+	while (cp < ecp) {
+		char c = *cp++;
+		if (c < '0' || c > '9') {
+			break;
+		}
+		val = (val * 10) + (c - '0');
+	}
+
+	if (val != 0 && negative_p) {
+		val = -val;
+	}
+
+	aestk_push_integer(vm, val);
+}
+
 #undef IMPL
 
 #define	OPC(x)	[OPC_ ## x] = OPC_ ## x ## _impl
@@ -1986,6 +2044,7 @@ static opc_impl_func_t opc_impls[OPC___COUNT] = {
 	OPC(TSTEOL),
 	OPC(TSTS),
 	OPC(STR),
+	OPC(VAL),
 };
 
 #undef OPC

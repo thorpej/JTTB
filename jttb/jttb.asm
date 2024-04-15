@@ -388,6 +388,14 @@ notRND:
 	RTN
 notABS:
 
+	TST	notVAL,'VAL'	; VAL() function?
+	TST	Serr,'('
+	CALL	EXPR		; Get expression.
+	TST	Serr,')'
+	VAL
+	RTN
+notVAL:
+
 	TST	notSTR,'STR$'	; STR$() function?
 	TST	Serr,'('
 	CALL	EXPR		; Get expression.
