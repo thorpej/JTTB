@@ -64,6 +64,8 @@
 ; ==> String variables are supported (e.g. A$ - Z$).  They occupy a separate
 ;     variable namespace than numeric variables.
 ;
+; ==> Added a STR$() function using a new STR VM insn.
+;
 ; ==> Added a VAL() function using a new VAL VM insn.
 ;
 ; ==> Added a HEX() function using a new HEX VM insn.
