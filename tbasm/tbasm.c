@@ -31,8 +31,8 @@
  *
  * Notes:
  *
- * - To my knowledge, the binary format for the TBVM was never specified
- *   in the original articles.
+ * - To my knowledge, other than the "one possible encoding" in the article,
+ *   the binary format for the TBVM was never formally specified.
  *
  * - While the original articles suggest relative labels to keep the
  *   VM byte code more compact, this implementation currently uses
