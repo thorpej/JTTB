@@ -1312,6 +1312,8 @@ IMPL(PRN)
  */
 IMPL(SPC)
 {
+	/* XXX "Next zone"?  Just one space, for now. */
+	(*vm->io_putchar)(vm->context, ' ');
 }
 
 /*
