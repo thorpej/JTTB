@@ -404,6 +404,14 @@ notVAL:
 	RTN
 notSTR:
 
+	TST	notHEX,'HEX$'	; HEX$() function?
+	TST	Serr,'('
+	CALL	EXPR		; Get expression.
+	TST	Serr,')'
+	HEX
+	RTN
+notHEX:
+
 	TSTV	F0		; Variable?
 	IND			; Yes, get the value.
 	RTN

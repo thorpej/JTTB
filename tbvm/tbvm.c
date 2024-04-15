@@ -302,7 +302,7 @@ print_string(tbvm *vm, string *string)
 }
 
 static int
-printed_number_width(int num)
+printed_number_width(int num, int base)
 {
 	bool negative_p = false;
 	int width;
@@ -314,7 +314,7 @@ printed_number_width(int num)
 		negative_p = true;
 		num = -num;
 	}
-	for (width = 0; num != 0; num /= 10) {
+	for (width = 0; num != 0; num /= base) {
 		width++;
 	}
 	if (negative_p) {
@@ -324,7 +324,7 @@ printed_number_width(int num)
 }
 
 static char *
-format_number(int num, int width, char *buf, size_t bufsize)
+format_number(int num, int base, int width, char *buf, size_t bufsize)
 {
 	bool negative_p = num < 0;
 	char *cp = &buf[bufsize];
@@ -334,11 +334,26 @@ format_number(int num, int width, char *buf, size_t bufsize)
 		num = -num;
 	}
 
-	do {
-		*--cp = '0' + (num % 10);
-		num /= 10;
-		digits++;
-	} while (num != 0);
+	if (base == 10) {
+		do {
+			*--cp = '0' + (num % 10);
+			num /= 10;
+			digits++;
+		} while (num != 0);
+	} else if (base == 16) {
+		unsigned int unum = num, n;
+		do {
+			n = unum & 0xf;
+			unum >>= 4;
+			if (n <= 9) {
+				*--cp = '0' + n;
+			} else {
+				*--cp = 'A' + (n - 10);
+			}
+		} while (unum != 0);
+	} else {
+		abort();
+	}
 
 	if (negative_p) {
 		*--cp = '-';
@@ -370,7 +385,7 @@ print_number_justified(tbvm *vm, int num, int width)
 	char buf[PRN_BUFSIZE];
 	char *cp;
 
-	cp = format_number(num, width, buf, sizeof(buf));
+	cp = format_number(num, 10, width, buf, sizeof(buf));
 	print_strbuf(vm, cp, &buf[PRN_BUFSIZE] - cp);
 }
 
@@ -938,7 +953,7 @@ list_program(tbvm *vm)
 		assert(vm->last_line >= vm->first_line);
 	}
 
-	width = printed_number_width(vm->last_line);
+	width = printed_number_width(vm->last_line, 10);
 	for (i = vm->first_line - 1; i < vm->last_line; i++) {
 		if (vm->progstore[i] == NULL) {
 			continue;
@@ -1949,18 +1964,33 @@ IMPL(TSTS)
 	advance_cursor(vm, i + 1);	/* advance past DQUOTE */
 }
 
+static void
+num_to_string(tbvm *vm, int base)
+{
+	int num = aestk_pop_integer(vm);
+	int width = printed_number_width(num, base);
+	string *string = string_alloc(vm, NULL, width);
+	char *cp = format_number(num, base, 0, string->str, width);
+	assert(cp == string->str);
+	aestk_push_string(vm, string);
+}
+
 /*
  * Replace the numeric value on the AESTK with a string representation
  * of that number.
  */
 IMPL(STR)
 {
-	int num = aestk_pop_integer(vm);
-	int width = printed_number_width(num);
-	string *string = string_alloc(vm, NULL, width);
-	char *cp = format_number(num, 0, string->str, width);
-	assert(cp == string->str);
-	aestk_push_string(vm, string);
+	num_to_string(vm, 10);
+}
+
+/*
+ * Replace the numeric value on the AESTK with a hexadecimal string
+ * representation of that number.
+ */
+IMPL(HEX)
+{
+	num_to_string(vm, 16);
 }
 
 /*
@@ -2063,6 +2093,7 @@ static opc_impl_func_t opc_impls[OPC___COUNT] = {
 	OPC(TSTS),
 	OPC(STR),
 	OPC(VAL),
+	OPC(HEX),
 };
 
 #undef OPC
