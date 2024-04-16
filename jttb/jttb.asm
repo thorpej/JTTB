@@ -356,6 +356,14 @@ Serr:	ERR			; Syntax error.
 ;
 ; function ::= RND ( expression )
 ;              ABS ( expression )
+;              ASC ( expression )
+;              VAL ( expression )
+;              LEN ( expression )
+;              INT ( expression )
+;              SGN ( expression )
+;              CHR$ ( expression )
+;              STR$ ( expression )
+;              HEX$ ( expression )
 ;
 ; var ::= A | B | ... | Y | Z
 ;
