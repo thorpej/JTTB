@@ -158,6 +158,7 @@ struct tbvm {
 	char		*lbuf;
 	int		lbuf_ptr;
 
+	int		ondone;
 	int		cstk[SIZE_CSTK];
 	int		cstk_ptr;
 
@@ -442,6 +443,7 @@ vm_abort(tbvm *vm, const char *msg)
 static void
 reset_stacks(tbvm *vm)
 {
+	vm->ondone = 0;
 	vm->cstk_ptr = 0;
 	vm->sbrstk_ptr = 0;
 	vm->aestk_ptr = 0;
@@ -1212,6 +1214,59 @@ IMPL(TST)
 }
 
 /*
+ * This is a lot like TST, except we scan forward looking for the string
+ * to match.  If we encounter an immediate string, we skip over it, and
+ * keep scanning after.
+ */
+IMPL(SCAN)
+{
+	int label = get_label(vm);
+	int count, saved_pc = vm->pc;
+	char line_c, prog_c;
+	bool matching = false;
+	bool dquote = false;
+
+	skip_whitespace(vm);
+
+	for (count = 0, prog_c = get_progbyte(vm);;) {
+		line_c = peek_linebyte(vm, count);
+		if (line_c == END_OF_LINE) {
+			vm->pc = label;
+			return;
+		}
+		count++;
+		if (line_c == DQUOTE) {
+			dquote ^= true;
+		}
+		if (dquote) {
+			continue;
+		}
+		if ((prog_c & 0x7f) == line_c) {
+			matching = true;
+			if (prog_c & 0x80) {
+				break;
+			}
+			prog_c = get_progbyte(vm);
+		} else if (matching) {
+			vm->pc = saved_pc;
+			prog_c = get_progbyte(vm);
+			matching = false;
+		}
+	}
+	advance_cursor(vm, count);
+}
+
+/*
+ * Advance the cursor to the current end-of-line.
+ */
+IMPL(ADVEOL)
+{
+	while (vm->lbuf[vm->lbuf_ptr] != END_OF_LINE) {
+		vm->lbuf_ptr++;
+	}
+}
+
+/*
  * Execute the IL subroutine starting at "lbl".
  * Save the IL address following the CALL on the
  * control stack.
@@ -1243,12 +1298,51 @@ IMPL(DONE)
 {
 	int c;
 
+	/*
+	 * If an ONDONE hook has been registered we need to do
+	 * the following:
+	 *
+	 * - Push the PC of this DONE opcode onto the control stack.
+	 * - Set the PC to the ONDONE hook address.
+	 * - Clear the ONDONE hook handler.
+	 * - Get the hell out of Dodge.
+	 *
+	 * When the ONDONE hook is done doing what it needs to do,
+	 * it will RTN, which will pop the saved PC off the control
+	 * stack and we'll end up right back here, but without the
+	 * ONDONE hook set so we can proceed as normal.
+	 */
+	if (vm->ondone) {
+		cstk_push(vm, vm->opc_pc);
+		vm->pc = vm->ondone;
+		vm->ondone = 0;
+		return;
+	}
+
 	skip_whitespace(vm);
 	c = peek_linebyte(vm, 0);
 
 	if (c != END_OF_LINE) {
 		basic_syntax_error(vm);
 	}
+}
+
+/*
+ * Set a hook to be performed on the next DONE insn.
+ */
+IMPL(ONDONE)
+{
+	int label = get_label(vm);
+
+	if (vm->ondone != 0) {
+		/* XXX Should this be a stack? */
+		/* XXX Better error? */
+		basic_syntax_error(vm);
+	}
+	if (label == 0) {
+		vm_abort(vm, "!INVALID ONDONE LABEL");
+	}
+	vm->ondone = label;
 }
 
 /*
@@ -2243,6 +2337,9 @@ static opc_impl_func_t opc_impls[OPC___COUNT] = {
 	OPC(CHR),
 	OPC(INTVAL),
 	OPC(SGN),
+	OPC(SCAN),
+	OPC(ONDONE),
+	OPC(ADVEOL),
 };
 
 #undef OPC

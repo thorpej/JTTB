@@ -86,6 +86,9 @@
 ;
 ; ==> Added a SGN() function using a new SGN VM insn.
 ;
+; ==> Added support for ELSE branches if IF statements.  The SCAN,
+;     ONDONE, and ADVEOL VM insns are used for this.
+;
 ;
 ; Original Tiny BASIC VM opcodes that are no longer used:
 ; ==> CMPR (replaced by CMPRX)
@@ -191,7 +194,7 @@ PR3:	DONE			; End of statement.
 notPRINT:
 
 	;
-	; IF expression relop expression THEN statement
+	; IF expression relop expression THEN statement (ELSE statement)
 	;
 	TST	notIF,'IF'	; IF statement?
 	CALL	EXPR		; Get first expression.
@@ -199,8 +202,19 @@ notPRINT:
 	CALL	EXPR		; Get second expression.
 	TST	Serr,'THEN'	; Check for THEN.
 	CMPRX	IF1		; Perform comparsion
-	JMP	STMT		; True, perform the statement.
-IF1:	NXT			; Next statement.
+	ONDONE	IF3		; True, hook into DONE to skip possible ELSE.
+	JMP	STMT		; Perform the statement.
+IF1:	SCAN	IF2,'ELSE'	; False, scan for an ELSE...
+	JMP	STMT		; ...and perform that statement.
+IF2:	DONE			; End of statment.
+	NXT			; Next statement.
+	;
+	; This is the ONDONE hook that takes care of skipping an
+	; ELSE branch, if present.
+	;
+IF3:	TST	IF4,'ELSE'	; Is there an ELSE branch to skip?
+	ADVEOL			; Yes, advance past it.
+IF4:	RTN			; Return so the DONE can proceed.
 notIF:
 
 	;

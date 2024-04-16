@@ -93,8 +93,11 @@
 #define	OPC_CHR		52
 #define	OPC_INTVAL	53
 #define	OPC_SGN		54
+#define	OPC_SCAN	55
+#define	OPC_ONDONE	56
+#define	OPC_ADVEOL	57
 
-#define	OPC___LAST	OPC_SGN
+#define	OPC___LAST	OPC_ADVEOL
 #define	OPC___COUNT	(OPC___LAST + 1)
 
 #define	OPC_F_LABEL	0x01

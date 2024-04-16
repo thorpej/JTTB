@@ -154,6 +154,9 @@ const struct opcode opcode_tab[] = {
 	{ "CHR",	OPC_CHR,	0 },
 	{ "INTVAL",	OPC_INTVAL,	0 },
 	{ "SGN",	OPC_SGN,	0 },
+	{ "SCAN",	OPC_SCAN,	OPC_F_LABEL | OPC_F_STRING },
+	{ "ONDONE",	OPC_ONDONE,	OPC_F_LABEL },
+	{ "ADVEOL",	OPC_ADVEOL,	0 },
 
 	{ NULL,		0,		0 },
 };
