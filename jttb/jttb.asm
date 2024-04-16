@@ -161,6 +161,7 @@ notGO:
 	; Check for bare PRINT statement, which just prints a newline.
 	;
 	TSTEOL	PR1
+	DONE			; End of statement.
 	NLINE			; Print newline.
 	NXT			; Next statement.
 
@@ -170,6 +171,7 @@ notGO:
 	;
 PREOLsep:
 	TSTEOL	PR1		; Test for EOL.
+	DONE			; End of statement.
 	NXT			; Next statement.
 
 PR1:	CALL	EXPR		; Get expression.
@@ -272,6 +274,8 @@ notRTN:
 	; REM <rest of line ignored>
 	;
 	TST	notREM,'REM'	; REM statement?
+	ADVEOL			; Skip to the end of line.
+	DONE			; End of statement.
 	NXT			; Next statement.
 notREM:
 
@@ -279,7 +283,9 @@ notREM:
 	; END
 	;
 	TST	notEND,'END'	; END statement?
-				; XXX missing DONE?
+	; The original Tiny BASIC VM program did not have a DONE
+	; here, because there's no point; the program is ending.
+	; XXX Maybe put one here to be pedantic about syntax errors?
 	FIN			; Yes, return to direct mode.
 notEND:
 
