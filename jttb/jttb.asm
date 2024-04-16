@@ -196,7 +196,29 @@ PR3:	DONE			; End of statement.
 notPRINT:
 
 	;
-	; IF expression relop expression THEN statement (ELSE statement)
+	; IF expression relop expression THEN statement elsebranch
+	;
+	; elsebranch ::=
+	;                ELSE statement
+	;
+	; N.B. the parser is not very sophisticated here, and not
+	; particularly tolerant of ambiguous scoping.  For example:
+	;
+	;	IF F = 12 THEN IF G = 13 GOTO 100 ELSE GOTO 200
+	;
+	; In this case, the "GOTO 200" is going to be executed if "F = 12"
+	; is false, which may not be what is intended.  Furthermore, the
+	; parser will flag a syntax error if another ELSE branch is
+	; placed after "GOTO 200".
+	;
+	; On the other hand:
+	;
+	;	IF F = 12 then GOTO 100 ELSE IF G = 13 GOTO 200 ELSE GOTO 300
+	;
+	; ...this will work in the expected manner, which is if "F = 12"
+	; is false, then "IF G = 13 GOTO 200 ELSE GOTO 300" will be the
+	; next statement executed, which does not have any ambiguity in
+	; the scoping.
 	;
 	TST	notIF,'IF'	; IF statement?
 	CALL	EXPR		; Get first expression.
