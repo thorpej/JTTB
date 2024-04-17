@@ -230,8 +230,14 @@ notPRINT:
 	JMP	STMT		; Perform the statement.
 IF1:	SCAN	IF2,'ELSE'	; False, scan for an ELSE...
 	JMP	STMT		; ...and perform that statement.
-IF2:	DONE			; End of statment.
-	NXT			; Next statement.
+
+	;
+	; We can't really perform a DONE here.  If we do, we're just
+	; going to bump into the statement in the THEN branch that
+	; wasn't taken.
+	;
+IF2:	NXT			; Next statement.
+
 	;
 	; This is the ONDONE hook that takes care of skipping an
 	; ELSE branch, if present.
