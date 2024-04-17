@@ -53,10 +53,9 @@
 #define	NUM_SVARS	26	/* A$ - Z$ */
 #define	NUM_VARS	(NUM_NVARS + NUM_SVARS)
 #define	SVAR_BASE	NUM_NVARS
-#define	SIZE_CSTK	64	/* control stack size */
-#define	SIZE_SBRSTK	64	/* subroutine stack size */
-#define	SIZE_AESTK	64	/* expression stack size */
-#define	SIZE_LPSTK	NUM_VARS/* loop stack size */
+#define	SIZE_CSTK	64		/* control stack size */
+#define	SIZE_SBRSTK	(64+NUM_NVARS)	/* subroutine stack size */
+#define	SIZE_AESTK	64		/* expression stack size */
 #define	SIZE_LBUF	256
 
 #define	MAX_LINENO	65535	/* arbitrary */
@@ -64,18 +63,16 @@
 #define	DQUOTE		'"'
 #define	END_OF_LINE	'\n'
 
-struct saveloc {
-	int lineno;
-	int lbuf_ptr;
-};
-
-struct loop {
+struct subr {
 	int var;
 	int lineno;
+	int lbuf_ptr;
 	int start_val;
 	int end_val;
 	int step;
 };
+
+#define	SUBR_VAR_SUBROUTINE	-1
 
 typedef struct string {
 	unsigned int refs;
@@ -162,14 +159,11 @@ struct tbvm {
 	int		cstk[SIZE_CSTK];
 	int		cstk_ptr;
 
-	struct saveloc	sbrstk[SIZE_SBRSTK];
+	struct subr	sbrstk[SIZE_SBRSTK];
 	int		sbrstk_ptr;
 
 	struct value	aestk[SIZE_AESTK];
 	int		aestk_ptr;
-
-	struct loop	lpstk[SIZE_LPSTK];
-	int		lpstk_ptr;
 };
 
 static char empty_string_str[1] = { 0 };
@@ -616,27 +610,45 @@ cstk_pop(tbvm *vm)
 /*********** Subroutine stack routines **********/
 
 static void
-sbrstk_push(tbvm *vm, int line, int ptr)
+sbrstk_push(tbvm *vm, const struct subr *subrp)
 {
 	int slot;
 
 	if ((slot = stack_push(&vm->sbrstk_ptr, SIZE_SBRSTK)) == -1) {
-		basic_gosub_error(vm);
+		if (subrp->var == SUBR_VAR_SUBROUTINE) {
+			basic_gosub_error(vm);
+		} else {
+			basic_for_error(vm);
+		}
 	}
-	vm->sbrstk[slot].lineno = line;
-	vm->sbrstk[slot].lbuf_ptr = ptr;
+	vm->sbrstk[slot] = *subrp;
 }
 
-static void
-sbrstk_pop(tbvm *vm, int *linep, int *ptrp)
+static struct subr *
+sbrstk_peek_top(tbvm *vm)
+{
+	if (vm->sbrstk_ptr == 0) {
+		vm_abort(vm, "!SUBRSTK STACK EMPTY");
+	}
+	return &vm->sbrstk[vm->sbrstk_ptr - 1];
+}
+
+static bool
+sbrstk_pop(tbvm *vm, int var, struct subr *subrp, bool pop_match)
 {
 	int slot;
 
-	if ((slot = stack_pop(&vm->sbrstk_ptr, SIZE_SBRSTK)) == -1) {
+	for (slot = vm->sbrstk_ptr - 1; slot >= 0; slot--) {
+		if (vm->sbrstk[slot].var == var) {
+			*subrp = vm->sbrstk[slot];
+			vm->sbrstk_ptr = pop_match ? slot : slot + 1;
+			return true;
+		}
+	}
+	if (var == SUBR_VAR_SUBROUTINE) {
 		basic_return_error(vm);
 	}
-	*linep = vm->sbrstk[slot].lineno;
-	*ptrp = vm->sbrstk[slot].lbuf_ptr;
+	return false;
 }
 
 /*********** Arithmetic Expression stack routines **********/
@@ -732,43 +744,6 @@ aestk_pop_varref(tbvm *vm)
 
 	aestk_pop_value(vm, VALUE_TYPE_VARREF, &value);
 	return value.integer;
-}
-
-/*********** Loop stack routines **********/
-
-static void
-lpstk_push(tbvm *vm, const struct loop *l)
-{
-	int slot;
-
-	if ((slot = stack_push(&vm->lpstk_ptr, SIZE_LPSTK)) == -1) {
-		basic_for_error(vm);
-	}
-	vm->lpstk[slot] = *l;
-}
-
-static struct loop *
-lpstk_peek_top(tbvm *vm)
-{
-	if (vm->lpstk_ptr == 0) {
-		vm_abort(vm, "!LOOP STACK EMPTY");
-	}
-	return &vm->lpstk[vm->lpstk_ptr - 1];
-}
-
-static struct loop *
-lpstk_pop(tbvm *vm, int var, struct loop *l_store, bool pop_match)
-{
-	int slot;
-
-	for (slot = vm->lpstk_ptr - 1; slot >= 0; slot--) {
-		if (vm->lpstk[slot].var == var) {
-			*l_store = vm->lpstk[slot];
-			vm->lpstk_ptr = pop_match ? slot : slot + 1;
-			return l_store;
-		}
-	}
-	return NULL;
 }
 
 /*********** Variable routines **********/
@@ -1461,9 +1436,12 @@ IMPL(XFER)
 IMPL(SAV)
 {
 	/* ensure we return to DIRECT mode if needed */
-	int lineno = vm->direct ? 0 : vm->lineno;
+	struct subr subr = {
+		.var = SUBR_VAR_SUBROUTINE,
+		.lineno = vm->direct ? 0 : vm->lineno,
+	};
 
-	sbrstk_push(vm, lineno, vm->lbuf_ptr);
+	sbrstk_push(vm, &subr);
 }
 
 /*
@@ -1472,10 +1450,10 @@ IMPL(SAV)
  */
 IMPL(RSTR)
 {
-	int lineno, ptr;
+	struct subr subr;
 
-	sbrstk_pop(vm, &lineno, &ptr);
-	restore_line(vm, lineno, ptr);
+	sbrstk_pop(vm, SUBR_VAR_SUBROUTINE, &subr, true);
+	restore_line(vm, subr.lineno, subr.lbuf_ptr);
 }
 
 bool
@@ -1959,17 +1937,17 @@ IMPL(EXIT)
  */
 IMPL(FOR)
 {
-	struct loop l;
+	struct subr subr;
 
-	l.end_val = aestk_pop_integer(vm);
-	l.start_val = aestk_pop_integer(vm);
-	l.var = aestk_pop_varref(vm);
-	l.lineno = next_line(vm);	/* XXX doesn't handle compound lines */
-	l.step = l.end_val > l.start_val ? 1 : -1;
+	subr.end_val = aestk_pop_integer(vm);
+	subr.start_val = aestk_pop_integer(vm);
+	subr.var = aestk_pop_varref(vm);
+	subr.lineno = next_line(vm);	/* XXX doesn't handle compound lines */
+	subr.step = subr.end_val > subr.start_val ? 1 : -1;
 
-	lpstk_push(vm, &l);
+	sbrstk_push(vm, &subr);
 
-	var_set_integer(vm, l.var, l.start_val);
+	var_set_integer(vm, subr.var, subr.start_val);
 }
 
 /*
@@ -1979,14 +1957,18 @@ IMPL(FOR)
  */
 IMPL(STEP)
 {
-	struct loop *l = lpstk_peek_top(vm);
+	struct subr *subr = sbrstk_peek_top(vm);
 	int step = aestk_pop_integer(vm);
+
+	if (subr->var == SUBR_VAR_SUBROUTINE) {
+		vm_abort(vm, "!STEPPING A SUBROUTINE");
+	}
 
 	/* Invalid step value. */
 	if (step <= 0) {
 		basic_step_error(vm);
 	}
-	l->step = l->end_val > l->start_val ? step : -step;
+	subr->step = subr->end_val > subr->start_val ? step : -step;
 }
 
 /*
@@ -2002,32 +1984,31 @@ IMPL(STEP)
 IMPL(NXTFOR)
 {
 	int var = aestk_pop_varref(vm);
-	struct loop *l, l_store;
+	struct subr subr;
 	int newval;
 	bool done = false;
 
-	l = lpstk_pop(vm, var, &l_store, false);
-	if (l == NULL) {
+	if (! sbrstk_pop(vm, var, &subr, false)) {
 		basic_next_error(vm);
 	}
-	newval = var_get_integer(vm, var) + l->step;
+	newval = var_get_integer(vm, var) + subr.step;
 
-	if (l->step < 0) {
-		if (newval < l->end_val) {
+	if (subr.step < 0) {
+		if (newval < subr.end_val) {
 			done = true;
 		}
 	} else {
-		if (newval > l->end_val) {
+		if (newval > subr.end_val) {
 			done = true;
 		}
 	}
 
 	if (done) {
 		next_statement(vm);
-		l = lpstk_pop(vm, var, &l_store, true);
+		sbrstk_pop(vm, var, &subr, true);
 	} else {
 		var_set_integer(vm, var, newval);
-		set_line(vm, l->lineno, 0, true);
+		set_line(vm, subr.lineno, 0, true);
 	}
 }
 
