@@ -61,7 +61,72 @@ BASIC into something not based on English.
 
 ### The JTTB Tiny BASIC Virtual Machine
 
-(I will write some notes here about how it works, eventually.  Promise!)
+At its core, the JTTB VM is relatively simple.  It is structured around
+three stacks:
+
+* [The control stack](docs/stacks.md#-the-control-stack)
+* [The subroutine stack](docs/stacks.md#-the-subroutine-stack)
+* [The expression stack](docs/stacks.md#-the-expression-stack)
+
+The control stack tracks return addresses for subroutines within the
+VM program itself.
+
+The subroutine stack tracks return locations for subroutines within the
+BASIC program, used to support the **GOSUB** statement.  It also stores
+the state needed for **FOR** loops.  For each loop, it records the following:
+
+* The variable involved in the loop
+* The line number of the first statement in the loop body
+* The starting value to assign to the variable
+* The terminating value of the variable
+* The loop stepping (the value to add to the variable each time through
+the loop)
+
+The expression stack is used to hold:
+
+* The left and right values used with arithmetic operators
+* Arguments to functions
+* Results of arithmetic operations and functions
+
+The expression stack is an integral part of the typing system in JTTB.
+
+In addition to these four stacks, there are a few other supporting
+characters that support the core functionality of the BASIC language.
+Those are:
+
+* The variable store
+* The program store
+* The line buffer
+* The line cursor
+* The string store
+
+And finally, there are a few other odds and ends:
+
+* I/O routines
+* Exception handling (BASIC errors, VM internal errors)
+* VM program state
+
+The *tbvm_exec()* function implements the VM's main execution loop.  When
+called, it first extracts two special VM program addresses from the VM
+program, the *collector PC* and the *executor PC*.  It then initializes
+everything, including two *setjmp()* environments for BASIC errors and
+VM internal errors.  Finally, it enters the main loop which performs the
+following tasks in order:
+
+* Garbage-collects unreferenced strings
+* Checks for a BREAK from the console
+* Fetches the next opcode from the VM program
+* Calls the function that implements that opcode
+
+If a VM internal error occurs (signalled by the *vm_abort()* function),
+the *longjmp()* target marks the VM as no longer running and *tbvm_exec()*
+returns.
+
+If a BASIC error occurs (signalled by the *basic_error()* function),
+the *longjmp()* target forces the interpreter back into **direct** mode
+and re-enters the main loop.
+
+(I will write some more notes here about how it works, eventually.  Promise!)
 
 ### The JTTB Tiny BASIC Virual Machine Assembler
 
