@@ -1050,6 +1050,51 @@ check_break(tbvm *vm)
 	return false;
 }
 
+static bool
+check_input_disconnected(tbvm *vm, char ch)
+{
+	if (ch == EOF) {
+		print_crlf(vm);
+		print_cstring(vm, "INPUT DISCONNECTED. GOODBYE.");
+		print_crlf(vm);
+		vm->vm_run = false;
+		return true;
+	}
+	return false;
+}
+
+static bool
+check_input_eol(tbvm *vm, int ch, char *buf, int *ptrp)
+{
+	if (ch == END_OF_LINE) {
+		buf[*ptrp] = (char)ch;
+		*ptrp = 0;
+		return true;
+	}
+	return false;
+}
+
+static bool
+check_input_too_long(tbvm *vm, int *ptrp)
+{
+	if (*ptrp == SIZE_LBUF - 1) {
+		print_crlf(vm);
+		print_cstring(vm, "?INPUT LINE TOO LONG");
+		print_crlf(vm);
+		*ptrp = 0;
+		return true;
+	}
+	return false;
+}
+
+static void
+input_needs_redo(tbvm *vm)
+{
+	/* print_crlf(vm); -- not needed -- user has hit return. */
+	print_cstring(vm, "?REDO");
+	print_crlf(vm);
+}
+
 static void
 set_line_ext(tbvm *vm, int lineno, int ptr, bool fatal, bool restoring)
 {
@@ -1552,51 +1597,6 @@ IMPL(LIT)
 	aestk_push_integer(vm, get_literal(vm));
 }
 
-static bool
-check_input_disconnected(tbvm *vm, char ch)
-{
-	if (ch == EOF) {
-		print_crlf(vm);
-		print_cstring(vm, "INPUT DISCONNECTED. GOODBYE.");
-		print_crlf(vm);
-		vm->vm_run = false;
-		return true;
-	}
-	return false;
-}
-
-static bool
-check_input_eol(tbvm *vm, int ch, char *buf, int *ptrp)
-{
-	if (ch == END_OF_LINE) {
-		buf[*ptrp] = (char)ch;
-		*ptrp = 0;
-		return true;
-	}
-	return false;
-}
-
-static bool
-check_input_too_long(tbvm *vm, int *ptrp)
-{
-	if (*ptrp == SIZE_LBUF - 1) {
-		print_crlf(vm);
-		print_cstring(vm, "?INPUT LINE TOO LONG");
-		print_crlf(vm);
-		*ptrp = 0;
-		return true;
-	}
-	return false;
-}
-
-static void
-input_needs_redo(tbvm *vm)
-{
-	/* print_crlf(vm); -- not needed -- user has hit return. */
-	print_cstring(vm, "?REDO");
-	print_crlf(vm);
-}
-
 /*
  * Read a number from the terminal and push its value onto the AESTK.
  */
@@ -1950,23 +1950,13 @@ IMPL(GETLINE)
 			vm->lbuf_ptr = 0;
 		}
 		ch = (*vm->io_getchar)(vm->context);
-		if (ch == EOF) {
-			print_crlf(vm);
-			print_cstring(vm, "INPUT DISCONNECTED. GOODBYE.");
-			print_crlf(vm);
-			vm->vm_run = false;
+		if (check_input_disconnected(vm, ch)) {
 			return;
 		}
-		if (ch == END_OF_LINE) {
-			vm->lbuf[vm->lbuf_ptr] = (char)ch;
-			vm->lbuf_ptr = 0;
+		if (check_input_eol(vm, ch, vm->lbuf, &vm->lbuf_ptr)) {
 			return;
 		}
-		if (vm->lbuf_ptr == SIZE_LBUF - 1) {
-			print_crlf(vm);
-			print_cstring(vm, "INPUT LINE TOO LONG.");
-			print_crlf(vm);
-			vm->lbuf_ptr = 0;
+		if (check_input_too_long(vm, &vm->lbuf_ptr)) {
 			continue;
 		}
 		if (ch == DQUOTE) {
