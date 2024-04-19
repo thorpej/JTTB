@@ -216,6 +216,23 @@ string_concatenate(tbvm *vm, string *str1, string *str2)
 	return string;
 }
 
+static int
+string_compare(string *str1, string *str2)
+{
+	int len = str1->len < str2->len ? str1->len : str2->len;
+	int rv;
+
+	rv = memcmp(str1->str, str2->str, len);
+	if (rv == 0) {
+		if (str1->len < str2->len) {
+			rv = -1;
+		} else if (str1->len > str2->len) {
+			rv = 1;
+		}
+	}
+	return rv;
+}
+
 static void
 string_invalidate_all_static(tbvm *vm)
 {
@@ -1515,10 +1532,23 @@ IMPL(RSTR)
 bool
 compare(tbvm *vm)
 {
-	int val2 = aestk_pop_integer(vm);
-	int rel  = aestk_pop_integer(vm);
-	int val1 = aestk_pop_integer(vm);
+	struct value val1, val2;
+	int rel;
 	bool result = false;
+
+	aestk_pop_value(vm, VALUE_TYPE_ANY, &val2);
+	rel = aestk_pop_integer(vm);
+	aestk_pop_value(vm, VALUE_TYPE_ANY, &val1);
+
+	/*
+	 * Only numbers and string, and they must both being
+	 * the same.
+	 */
+	if ((val1.type != VALUE_TYPE_INTEGER &&
+	     val1.type != VALUE_TYPE_STRING) ||
+	    val1.type != val2.type) {
+		basic_wrong_type_error(vm);
+	}
 
 	/*
 	 * Relation values:
@@ -1532,27 +1562,51 @@ compare(tbvm *vm)
 	 */
 	switch (rel) {
 	case 0:
-		result = val1 == val2;
+		if (val1.type == VALUE_TYPE_STRING) {
+			result = string_compare(val1.string, val2.string) == 0;
+		} else {
+			result = val1.integer == val2.integer;
+		}
 		break;
 	
 	case 1:
-		result = val1 < val2;
+		if (val1.type == VALUE_TYPE_STRING) {
+			result = string_compare(val1.string, val2.string) < 0;
+		} else {
+			result = val1.integer < val2.integer;
+		}
 		break;
 	
 	case 2:
-		result = val1 <= val2;
+		if (val1.type == VALUE_TYPE_STRING) {
+			result = string_compare(val1.string, val2.string) <= 0;
+		} else {
+			result = val1.integer <= val2.integer;
+		}
 		break;
 	
 	case 3:
-		result = val1 != val2;
+		if (val1.type == VALUE_TYPE_STRING) {
+			result = string_compare(val1.string, val2.string) != 0;
+		} else {
+			result = val1.integer != val2.integer;
+		}
 		break;
 	
 	case 4:
-		result = val1 > val2;
+		if (val1.type == VALUE_TYPE_STRING) {
+			result = string_compare(val1.string, val2.string) > 0;
+		} else {
+			result = val1.integer > val2.integer;
+		}
 		break;
 	
 	case 5:
-		result = val1 >= val2;
+		if (val1.type == VALUE_TYPE_STRING) {
+			result = string_compare(val1.string, val2.string) >= 0;
+		} else {
+			result = val1.integer >= val2.integer;
+		}
 		break;
 	
 	default:
