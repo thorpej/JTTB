@@ -1354,7 +1354,6 @@ IMPL(DONE)
 	c = peek_linebyte(vm, 0);
 
 	if (c != END_OF_LINE) {
-		printf("*** oink: c='%c' (%d)\n", c, c);
 		basic_syntax_error(vm);
 	}
 }
@@ -1653,11 +1652,53 @@ get_input_integer(tbvm *vm, const char * const startc, bool pm_ok, int *valp)
 }
 
 static bool
-get_input_string(tbvm *vm, const char * const startc, string **stringp)
+get_input_string(tbvm *vm, char *startc, string **stringp)
 {
-	/* XXX For now. */
-	printf("*** get_input_string\n");
-	return false;
+	/*
+	 * The MS BASIC string quoting rules for INPUT are a little
+	 * wierd.  This is what I have found through experimentation
+	 * with TRS-80 Extended Color BASIC:
+	 *
+	 * ==> All leading whitespace is stripped.
+	 *
+	 * ==> Trailing whitespace is **preserved**
+	 *
+	 * ==> If the string starts with a leading DQUOTE, and another
+	 *     DQUOTE is encountered, then only whitespace is allowed
+	 *     after the second DQUOTE and only the characters inside
+	 *     the DQUOTEs are considered.
+	 *
+	 * ==> If the string does NOT start with a leading DQUOTE, then
+	 *     DQUOTEs inside the string **are preserved**.
+	 */
+	int ptr = 0;
+	bool leading_dquote = false;
+
+	skip_whitespace_buf(startc, &ptr);
+	if (startc[ptr] == DQUOTE) {
+		leading_dquote = true;
+		ptr++;
+	}
+	startc = &startc[ptr];
+	ptr = 0;
+
+	for (;; ptr++) {
+		if (startc[ptr] == DQUOTE && leading_dquote) {
+			int len = ptr++;
+			skip_whitespace_buf(startc, &ptr);
+			if (startc[ptr] != END_OF_LINE) {
+				return false;
+			}
+			ptr = len;
+			break;
+		}
+		if (startc[ptr] == END_OF_LINE) {
+			break;
+		}
+	}
+
+	*stringp = string_alloc(vm, startc, ptr, 0);
+	return true;
 }
 
 /*
