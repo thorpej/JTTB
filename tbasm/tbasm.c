@@ -157,6 +157,8 @@ const struct opcode opcode_tab[] = {
 	{ "SCAN",	OPC_SCAN,	OPC_F_LABEL | OPC_F_STRING },
 	{ "ONDONE",	OPC_ONDONE,	OPC_F_LABEL },
 	{ "ADVEOL",	OPC_ADVEOL,	0 },
+	{ "INVAR",	OPC_INVAR,	0 },
+	{ "POP",	OPC_POP,	0 },
 
 	{ NULL,		0,		0 },
 };

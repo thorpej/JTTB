@@ -283,12 +283,15 @@ notNEXT:
 	; var-list::= var (, var)*
 	;
 	TST	notINPUT,'INPUT'; INPUT statement?
+	LIT	1		; Start with 1 input prompt char.
 IN1:	TSTV	Serr		; Get var address.
-	INNUM			; Get number from terminal.
-	STORE			; Store it.
+	INVAR			; Get value from terminal and store it.
 	TST	IN2,','		; More?
+	LIT	1		; Yes, add 1 to the prompt count.
+	ADD
 	JMP	IN1		; Yes, go get them.
 IN2:	DONE			; End of statement.
+	POP			; Pop prompt char count.
 	NXT			; Next statement.
 notINPUT:
 

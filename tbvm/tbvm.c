@@ -1597,6 +1597,18 @@ IMPL(LIT)
 	aestk_push_integer(vm, get_literal(vm));
 }
 
+/*
+ * Discard the value at the top of the AESTK.
+ */
+IMPL(POP)
+{
+	struct value value;
+	aestk_pop_value(vm, VALUE_TYPE_ANY, &value);
+	if (value.type == VALUE_TYPE_STRING) {
+		string_release(vm, value.string);
+	}
+}
+
 static bool
 get_input_integer(tbvm *vm, const char * const startc, bool pm_ok, int *valp)
 {
@@ -1640,6 +1652,14 @@ get_input_integer(tbvm *vm, const char * const startc, bool pm_ok, int *valp)
 	return true;
 }
 
+static bool
+get_input_string(tbvm *vm, const char * const startc, string **stringp)
+{
+	/* XXX For now. */
+	printf("*** get_input_string\n");
+	return false;
+}
+
 /*
  * Read a number from the terminal and push its value onto the AESTK.
  */
@@ -1673,6 +1693,64 @@ IMPL(INNUM)
 		goto get_input;
 	}
 	aestk_push_integer(vm, ival);
+}
+
+/*
+ * Read a value from the terminal and save it in the specified variable.
+ * The accepted type is dictated by the variable type.  The top of the
+ * AESTK contains the variable reference, and the next item on the stack
+ * is the number of prompt chars to print.  The number of prompt chars
+ * is left on the stack.
+ */
+IMPL(INVAR)
+{
+	struct value value;
+	char * const startc = vm->tmp_buf;
+	int var = aestk_pop_varref(vm);
+	int pcount = aestk_pop_integer(vm);
+	int string_p = var >= SVAR_BASE;
+	int ch, ptr;
+
+ get_input:
+	if (pcount) {
+		for (int i = 0; i < pcount; i++) {
+			(*vm->io_putchar)(vm->context, '?');
+		}
+		(*vm->io_putchar)(vm->context, ' ');
+	}
+	for (ptr = 0;;) {
+		if (check_break(vm)) {
+			direct_mode(vm, 0);
+			return;
+		}
+		ch = (*vm->io_getchar)(vm->context);
+		if (check_input_disconnected(vm, ch)) {
+			return;
+		}
+		if (check_input_eol(vm, ch, startc, &ptr)) {
+			break;
+		}
+		if (check_input_too_long(vm, &ptr)) {
+			continue;
+		}
+		startc[ptr++] = (char)ch;
+	}
+
+	if (string_p) {
+		if (! get_input_string(vm, startc, &value.string)) {
+			input_needs_redo(vm);
+			goto get_input;
+		}
+		value.type = VALUE_TYPE_STRING;
+	} else {
+		if (! get_input_integer(vm, startc, true, &value.integer)) {
+			input_needs_redo(vm);
+			goto get_input;
+		}
+		value.type = VALUE_TYPE_INTEGER;
+	}
+	var_set_value(vm, var, &value);
+	aestk_push_integer(vm, pcount);
 }
 
 /*
@@ -2439,6 +2517,8 @@ static opc_impl_func_t opc_impls[OPC___COUNT] = {
 	OPC(SCAN),
 	OPC(ONDONE),
 	OPC(ADVEOL),
+	OPC(INVAR),
+	OPC(POP),
 };
 
 #undef OPC
