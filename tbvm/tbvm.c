@@ -37,6 +37,7 @@
  */
 
 #include <assert.h>
+#include <limits.h>
 #include <setjmp.h>
 #include <stdbool.h>
 #include <stdlib.h>
@@ -151,6 +152,7 @@ struct tbvm {
 	struct value	vars[NUM_VARS];
 
 	char		direct_lbuf[SIZE_LBUF];
+	char		tmp_buf[SIZE_LBUF];
 
 	char		*lbuf;
 	int		lbuf_ptr;
@@ -843,15 +845,24 @@ whitespace_p(char c)
 }
 
 static void
-skip_whitespace(tbvm *vm)
+skip_whitespace_buf(const char *buf, int *ptrp)
 {
+	int ptr = *ptrp;
+
 	for (;;) {
-		if (whitespace_p(vm->lbuf[vm->lbuf_ptr])) {
-			vm->lbuf_ptr++;
+		if (whitespace_p(buf[ptr])) {
+			ptr++;
 		} else {
+			*ptrp = ptr;
 			return;
 		}
 	}
+}
+
+static void
+skip_whitespace(tbvm *vm)
+{
+	skip_whitespace_buf(vm->lbuf, &vm->lbuf_ptr);
 }
 
 static void
@@ -1298,6 +1309,7 @@ IMPL(DONE)
 	c = peek_linebyte(vm, 0);
 
 	if (c != END_OF_LINE) {
+		printf("*** oink: c='%c' (%d)\n", c, c);
 		basic_syntax_error(vm);
 	}
 }
@@ -1540,11 +1552,116 @@ IMPL(LIT)
 	aestk_push_integer(vm, get_literal(vm));
 }
 
+static bool
+check_input_disconnected(tbvm *vm, char ch)
+{
+	if (ch == EOF) {
+		print_crlf(vm);
+		print_cstring(vm, "INPUT DISCONNECTED. GOODBYE.");
+		print_crlf(vm);
+		vm->vm_run = false;
+		return true;
+	}
+	return false;
+}
+
+static bool
+check_input_eol(tbvm *vm, int ch, char *buf, int *ptrp)
+{
+	if (ch == END_OF_LINE) {
+		buf[*ptrp] = (char)ch;
+		*ptrp = 0;
+		return true;
+	}
+	return false;
+}
+
+static bool
+check_input_too_long(tbvm *vm, int *ptrp)
+{
+	if (*ptrp == SIZE_LBUF - 1) {
+		print_crlf(vm);
+		print_cstring(vm, "?INPUT LINE TOO LONG");
+		print_crlf(vm);
+		*ptrp = 0;
+		return true;
+	}
+	return false;
+}
+
+static void
+input_needs_redo(tbvm *vm)
+{
+	/* print_crlf(vm); -- not needed -- user has hit return. */
+	print_cstring(vm, "?REDO");
+	print_crlf(vm);
+}
+
 /*
  * Read a number from the terminal and push its value onto the AESTK.
  */
 IMPL(INNUM)
 {
+	long val = 0;
+	char * const startc = vm->tmp_buf, *endc;
+	int ch, ptr;
+
+ get_input:
+	print_cstring(vm, "? ");
+	for (ptr = 0;;) {
+		if (check_break(vm)) {
+			direct_mode(vm, 0);
+			return;
+		}
+		ch = (*vm->io_getchar)(vm->context);
+		if (check_input_disconnected(vm, ch)) {
+			return;
+		}
+		if (check_input_eol(vm, ch, startc, &ptr)) {
+			break;
+		}
+		if (check_input_too_long(vm, &ptr)) {
+			continue;
+		}
+		startc[ptr++] = (char)ch;
+	}
+
+	/*
+	 * strtol() skips leading whitespace, but we want to do it
+	 * ourselves in order to be more strict about what we parse.
+	 */
+	skip_whitespace_buf(startc, &ptr);
+
+	/*
+	 * Allow leading undary + or -.  If one is present, make sure
+	 * there is a digit immediately following.
+	 */
+	if (startc[ptr] == '+' || startc[ptr] == '-') {
+		if (startc[ptr + 1] < '0' || startc[ptr + 1] > '9') {
+			input_needs_redo(vm);
+			goto get_input;
+		}
+	}
+
+	val = strtol(startc, &endc, 10);
+
+	/* Advance the input cursor and skip trailing whitespace. */
+	ptr += (int)(endc - startc);
+	skip_whitespace_buf(startc, &ptr);
+
+	/* Ensure we're pointing at the end of line. */
+	if (startc[ptr] != END_OF_LINE) {
+		input_needs_redo(vm);
+		goto get_input;
+	}
+
+	/* Clamp the value. */
+	if (val > INT_MAX || val < INT_MIN) {
+		input_needs_redo(vm);
+		goto get_input;
+	}
+
+	aestk_push_integer(vm, (int)val);
 }
 
 /*
