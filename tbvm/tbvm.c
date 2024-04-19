@@ -1597,14 +1597,56 @@ IMPL(LIT)
 	aestk_push_integer(vm, get_literal(vm));
 }
 
+static bool
+get_input_integer(tbvm *vm, const char * const startc, bool pm_ok, int *valp)
+{
+	long val = 0;
+	char *endc;
+	int ptr = 0;
+
+	/*
+	 * strtol() skips leading whitespace, but we want to do it
+	 * ourselves in order to be more strict about what we parse.
+	 */
+	skip_whitespace_buf(startc, &ptr);
+
+	/*
+	 * Allow leading unary + or -.  If one is present, make sure
+	 * there is a digit immediately following.
+	 */
+	if (startc[ptr] == '+' || startc[ptr] == '-') {
+		if (!pm_ok || startc[ptr + 1] < '0' || startc[ptr + 1] > '9') {
+			return false;
+		}
+	}
+
+	val = strtol(startc, &endc, 10);
+
+	/* Advance the input cursor and skip trailing whitespace. */
+	ptr += (int)(endc - startc);
+	skip_whitespace_buf(startc, &ptr);
+
+	/* Ensure we're pointing at the end of line. */
+	if (startc[ptr] != END_OF_LINE) {
+		return false;
+	}
+
+	/* Clamp the value. */
+	if (val > INT_MAX || val < INT_MIN) {
+		return false;
+	}
+
+	*valp = (int)val;
+	return true;
+}
+
 /*
  * Read a number from the terminal and push its value onto the AESTK.
  */
 IMPL(INNUM)
 {
-	long val = 0;
-	char * const startc = vm->tmp_buf, *endc;
-	int ch, ptr;
+	char * const startc = vm->tmp_buf;
+	int ival, ch, ptr;
 
  get_input:
 	print_cstring(vm, "? ");
@@ -1626,42 +1668,11 @@ IMPL(INNUM)
 		startc[ptr++] = (char)ch;
 	}
 
-	/*
-	 * strtol() skips leading whitespace, but we want to do it
-	 * ourselves in order to be more strict about what we parse.
-	 */
-	skip_whitespace_buf(startc, &ptr);
-
-	/*
-	 * Allow leading undary + or -.  If one is present, make sure
-	 * there is a digit immediately following.
-	 */
-	if (startc[ptr] == '+' || startc[ptr] == '-') {
-		if (startc[ptr + 1] < '0' || startc[ptr + 1] > '9') {
-			input_needs_redo(vm);
-			goto get_input;
-		}
-	}
-
-	val = strtol(startc, &endc, 10);
-
-	/* Advance the input cursor and skip trailing whitespace. */
-	ptr += (int)(endc - startc);
-	skip_whitespace_buf(startc, &ptr);
-
-	/* Ensure we're pointing at the end of line. */
-	if (startc[ptr] != END_OF_LINE) {
+	if (! get_input_integer(vm, startc, true, &ival)) {
 		input_needs_redo(vm);
 		goto get_input;
 	}
-
-	/* Clamp the value. */
-	if (val > INT_MAX || val < INT_MIN) {
-		input_needs_redo(vm);
-		goto get_input;
-	}
-
-	aestk_push_integer(vm, (int)val);
+	aestk_push_integer(vm, ival);
 }
 
 /*
