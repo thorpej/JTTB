@@ -89,11 +89,15 @@
 ; ==> Added support for ELSE branches if IF statements.  The SCAN,
 ;     ONDONE, and ADVEOL VM insns are used for this.
 ;
+; ==> Added INVAR and POP VM insns, used to support both string and
+;     integer variables in the INPUT statement.
+;
 ;
 ; Original Tiny BASIC VM opcodes that are no longer used:
 ; ==> CMPR (replaced by CMPRX)
 ; ==> PRS (PRN can how handle any expression, including with strings)
 ; ==> LST (replaced by LSTX)
+; ==> INNUM (replaced by INVAR)
 ;
 
 ;
