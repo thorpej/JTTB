@@ -248,7 +248,10 @@ IF4:	RTN			; Return so the DONE can proceed.
 notIF:
 
 	;
-	; FOR var = expression TO expression (STEP expression)
+	; FOR var = expression TO expression forstep
+	;
+	; forstep ::=
+	;             STEP expression
 	;
 	TST	notFOR,'FOR'	; FOR statement?
 	TSTV	Serr		; Yes, get var address.
