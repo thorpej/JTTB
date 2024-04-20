@@ -35,9 +35,7 @@
  500 LET C=B
  510 GOSUB 2000
  650 PRINT
- 659 REM JTTB DOES NOT YET SUPPORT PROMPT STRINGS FOR INPUT.
- 660 PRINT "What is your bet";
- 661 INPUT M
+ 660 INPUT "What is your bet"; M
  670 IF M<>0 THEN GOTO 680
  675 PRINT "CHICKEN!!"
  676 PRINT
@@ -59,8 +57,7 @@
  980 IF M<Q THEN GOTO 240
 1000 PRINT
 1010 PRINT "Sorry, friend, but you blew your wad."
-1020 PRINT "Try again (yes or no)";
-1021 INPUT A$
+1020 INPUT "Try again (yes or no)"; A$
 1030 IF A$="yes" THEN GOTO 110
 1040 PRINT
 1041 PRINT "O.K. Hope you had fun!!"
