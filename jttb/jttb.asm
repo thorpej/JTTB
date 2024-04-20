@@ -92,10 +92,11 @@
 ; ==> Added INVAR and POP VM insns, used to support both string and
 ;     integer variables in the INPUT statement.
 ;
+; ==> Added optional prompt support to INPUT, using PRS VM insn.
+;
 ;
 ; Original Tiny BASIC VM opcodes that are no longer used:
 ; ==> CMPR (replaced by CMPRX)
-; ==> PRS (PRN can how handle any expression, including with strings)
 ; ==> LST (replaced by LSTX)
 ; ==> INNUM (replaced by INVAR)
 ;
@@ -282,19 +283,25 @@ notFOR:
 notNEXT:
 
 	;
-	; INPUT var-list
+	; INPUT opt-prompt var-list
+	;
+	; opt-prompt ::=
+	;               "characterstring" ;
 	;
 	; var-list::= var (, var)*
 	;
 	TST	notINPUT,'INPUT'; INPUT statement?
-	LIT	1		; Start with 1 input prompt char.
-IN1:	TSTV	Serr		; Get var address.
+	TST	IN1,'"'		; Prompt string?
+	PRS			; Yes, print it.
+	TST	Serr,';'	; Require ; separator between string and var.
+IN1:	LIT	1		; Start with 1 input prompt char.
+IN2:	TSTV	Serr		; Get var address.
 	INVAR			; Get value from terminal and store it.
-	TST	IN2,','		; More?
+	TST	IN3,','		; More?
 	LIT	1		; Yes, add 1 to the prompt count.
 	ADD
-	JMP	IN1		; Yes, go get them.
-IN2:	DONE			; End of statement.
+	JMP	IN2		; Yes, go get them.
+IN3:	DONE			; End of statement.
 	POP			; Pop prompt char count.
 	NXT			; Next statement.
 notINPUT:
