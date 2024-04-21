@@ -34,10 +34,15 @@
 struct tbvm;
 typedef struct tbvm tbvm;
 
-tbvm	*tbvm_alloc(void);
+tbvm	*tbvm_alloc(void *);
 void	tbvm_exec(tbvm *, const char *, size_t);
 void	tbvm_free(tbvm *);
 
 void	tbvm_break(tbvm *);
+
+struct tbvm_console_io {
+	int	(*io_getchar)(void *);
+	void	(*io_putchar)(void *, int);
+};
 
 #endif /* tbvm_h_included */

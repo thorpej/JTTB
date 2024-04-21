@@ -122,8 +122,7 @@ struct tbvm {
 	bool		static_strings_valid;
 
 	void		*context;
-	int		(*io_getchar)(void *);
-	void		(*io_putchar)(void *, int);
+	const struct tbvm_console_io *cons_io;
 
 	struct value	vars[NUM_VARS];
 
@@ -143,6 +142,20 @@ struct tbvm {
 	struct value	aestk[SIZE_AESTK];
 	int		aestk_ptr;
 };
+
+/*********** Driver interface routines **********/
+
+static inline int
+vm_io_getchar(tbvm *vm)
+{
+	return (*vm->cons_io->io_getchar)(vm->context);
+}
+
+static inline void
+vm_io_putchar(tbvm *vm, int ch)
+{
+	(*vm->cons_io->io_putchar)(vm->context, ch);
+}
 
 /*********** String routines **********/
 
@@ -347,7 +360,7 @@ value_release(tbvm *vm, const struct value *value)
 static void
 print_crlf(tbvm *vm)
 {
-	(*vm->io_putchar)(vm->context, '\n');
+	vm_io_putchar(vm, '\n');
 }
 
 static void
@@ -356,7 +369,7 @@ print_cstring(tbvm *vm, const char *msg)
 	const char *cp;
 
 	for (cp = msg; *cp != '\0'; cp++) {
-		(*vm->io_putchar)(vm->context, *cp);
+		vm_io_putchar(vm, *cp);
 	}
 }
 
@@ -366,7 +379,7 @@ print_strbuf(tbvm *vm, const char *str, size_t len)
 	size_t i;
 
 	for (i = 0; i < len; i++) {
-		(*vm->io_putchar)(vm->context, str[i]);
+		vm_io_putchar(vm, str[i]);
 	}
 }
 
@@ -867,6 +880,11 @@ default_putchar(void *v, int c)
 	(void) putchar(c);
 }
 
+static const struct tbvm_console_io default_cons_io = {
+	.io_getchar = default_getchar,
+	.io_putchar = default_putchar,
+};
+
 /*********** Program execution helper routines **********/
 
 static void
@@ -1043,9 +1061,9 @@ list_program(tbvm *vm, int firstline, int lastline)
 			continue;
 		}
 		print_number_justified(vm, i + 1, width);
-		(*vm->io_putchar)(vm->context, ' ');
+		vm_io_putchar(vm, ' ');
 		for (cp = vm->progstore[i]; *cp != END_OF_LINE; cp++) {
-			(*vm->io_putchar)(vm->context, *cp);
+			vm_io_putchar(vm, *cp);
 		}
 		print_crlf(vm);
 	}
@@ -1456,7 +1474,7 @@ IMPL(PRS)
 			basic_syntax_error(vm);
 			break;
 		}
-		(*vm->io_putchar)(vm->context, c);
+		vm_io_putchar(vm, c);
 	}
 }
 
@@ -1496,7 +1514,7 @@ IMPL(PRN)
 IMPL(SPC)
 {
 	/* XXX "Next zone"?  Just one space, for now. */
-	(*vm->io_putchar)(vm->context, ' ');
+	vm_io_putchar(vm, ' ');
 }
 
 /*
@@ -1796,7 +1814,7 @@ IMPL(INNUM)
 			direct_mode(vm, 0);
 			return;
 		}
-		ch = (*vm->io_getchar)(vm->context);
+		ch = vm_io_getchar(vm);
 		if (check_input_disconnected(vm, ch)) {
 			return;
 		}
@@ -1835,16 +1853,16 @@ IMPL(INVAR)
  get_input:
 	if (pcount) {
 		for (int i = 0; i < pcount; i++) {
-			(*vm->io_putchar)(vm->context, '?');
+			vm_io_putchar(vm, '?');
 		}
-		(*vm->io_putchar)(vm->context, ' ');
+		vm_io_putchar(vm, ' ');
 	}
 	for (ptr = 0;;) {
 		if (check_break(vm)) {
 			direct_mode(vm, 0);
 			return;
 		}
-		ch = (*vm->io_getchar)(vm->context);
+		ch = vm_io_getchar(vm);
 		if (check_input_disconnected(vm, ch)) {
 			return;
 		}
@@ -2154,7 +2172,7 @@ IMPL(GETLINE)
 		if (check_break(vm)) {
 			vm->lbuf_ptr = 0;
 		}
-		ch = (*vm->io_getchar)(vm->context);
+		ch = vm_io_getchar(vm);
 		if (check_input_disconnected(vm, ch)) {
 			return;
 		}
@@ -2640,12 +2658,12 @@ static opc_impl_func_t opc_impls[OPC___COUNT] = {
 /*********** Interface routines **********/
 
 tbvm
-*tbvm_alloc(void)
+*tbvm_alloc(void *context)
 {
 	tbvm *vm = calloc(1, sizeof(*vm));
 
-	vm->io_getchar = default_getchar;
-	vm->io_putchar = default_putchar;
+	vm->context = context;
+	vm->cons_io = &default_cons_io;
 
 	return vm;
 }

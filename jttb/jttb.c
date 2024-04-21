@@ -53,7 +53,7 @@ main(int argc, char *argv[])
 
 	signal(SIGINT, sigint_handler);
 
-	vm = tbvm_alloc();
+	vm = tbvm_alloc(NULL);
 	tbvm_exec(vm, tbvm_program, sizeof(tbvm_program));
 	tbvm_free(vm);
 
