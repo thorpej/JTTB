@@ -49,4 +49,6 @@ struct tbvm_file_io {
 	void	(*io_putchar)(void *, void *, int);
 };
 
+void	tbvm_set_file_io(tbvm *, const struct tbvm_file_io *);
+
 #endif /* tbvm_h_included */

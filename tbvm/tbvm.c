@@ -210,6 +210,19 @@ string_concatenate(tbvm *vm, string *str1, string *str2)
 	return string;
 }
 
+static string *
+string_terminate(tbvm *vm, string *str1)
+{
+	/*
+	 * Dynamic strings are NUL-terminated already, but static strings
+	 * are not.
+	 */
+	if (str1->lineno == 0) {
+		return str1;
+	}
+	return string_alloc(vm, str1->str, str1->len, 0);
+}
+
 static int
 string_compare(string *str1, string *str2)
 {
@@ -2685,6 +2698,12 @@ tbvm
 	vm->file_io = &default_file_io;
 
 	return vm;
+}
+
+void
+tbvm_set_file_io(tbvm *vm, const struct tbvm_file_io *io)
+{
+	vm->file_io = io;
 }
 
 void
