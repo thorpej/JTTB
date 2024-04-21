@@ -95,30 +95,6 @@ struct value {
 #define	VALUE_TYPE_STRING	2
 #define	VALUE_TYPE_VARREF	10
 
-static bool
-value_valid_p(const struct value *value)
-{
-	bool rv = true;
-
-	switch (value->type) {
-	case VALUE_TYPE_INTEGER:
-		break;
-
-	case VALUE_TYPE_STRING:
-		rv = (value->string != NULL);
-		break;
-
-	case VALUE_TYPE_VARREF:
-		rv = (value->integer >= 0 && value->integer <= NUM_VARS);
-		break;
-
-	default:
-		rv = false;
-	}
-
-	return rv;
-}
-
 struct tbvm {
 	jmp_buf		vm_abort_env;
 	jmp_buf		basic_error_env;
@@ -142,7 +118,7 @@ struct tbvm {
 	char		*progstore[MAX_LINENO];
 
 	string		*strings;
-	bool		strings_need_gc;
+	unsigned int	strings_need_gc;
 	bool		static_strings_valid;
 
 	void		*context;
@@ -167,6 +143,8 @@ struct tbvm {
 	struct value	aestk[SIZE_AESTK];
 	int		aestk_ptr;
 };
+
+/*********** String routines **********/
 
 static char empty_string_str[1] = { 0 };
 static struct string empty_string = {
@@ -198,10 +176,12 @@ string_alloc(tbvm *vm, char *str, size_t len, int lineno)
 	}
 	string->len = len;
 	string->lineno = lineno;
-	string->refs = 1;
+	string->refs = 0;
 
 	string->next = vm->strings;
 	vm->strings = string;
+	vm->strings_need_gc++;
+	assert(vm->strings_need_gc != 0);
 
 	return string;
 }
@@ -264,6 +244,10 @@ static string *
 string_retain(tbvm *vm, string *string)
 {
 	if (string != &empty_string) {
+		if (string->refs == 0) {
+			assert(vm->strings_need_gc != 0);
+			vm->strings_need_gc--;
+		}
 		string->refs++;
 		assert(string->refs != 0);
 	}
@@ -277,7 +261,8 @@ string_release(tbvm *vm, string *string)
 		assert(string->refs != 0);
 		string->refs--;
 		if (string->refs == 0) {
-			vm->strings_need_gc = true;
+			vm->strings_need_gc++;
+			assert(vm->strings_need_gc != 0);
 		}
 	}
 }
@@ -299,7 +284,7 @@ string_gc(tbvm *vm)
 				nextp = &string->next;
 			}
 		}
-		vm->strings_need_gc = false;
+		vm->strings_need_gc = 0;
 	}
 }
 
@@ -312,7 +297,52 @@ string_freeall(tbvm *vm)
 		vm->strings = string->next;
 		string_free(vm, string);
 	}
+	vm->strings_need_gc = 0;
 }
+
+/*********** Value routines **********/
+
+static bool
+value_valid_p(const struct value *value)
+{
+	bool rv = true;
+
+	switch (value->type) {
+	case VALUE_TYPE_INTEGER:
+		break;
+
+	case VALUE_TYPE_STRING:
+		rv = (value->string != NULL);
+		break;
+
+	case VALUE_TYPE_VARREF:
+		rv = (value->integer >= 0 && value->integer <= NUM_VARS);
+		break;
+
+	default:
+		rv = false;
+	}
+
+	return rv;
+}
+
+static void
+value_retain(tbvm *vm, const struct value *value)
+{
+	if (value->type == VALUE_TYPE_STRING) {
+		string_retain(vm, value->string);
+	}
+}
+
+static void
+value_release(tbvm *vm, const struct value *value)
+{
+	if (value->type == VALUE_TYPE_STRING) {
+		string_release(vm, value->string);
+	}
+}
+
+/*********** Print formatting helper routines **********/
 
 static void
 print_crlf(tbvm *vm)
@@ -440,6 +470,8 @@ print_number(tbvm *vm, int num)
 	print_number_justified(vm, num, 0);
 }
 
+/*********** BASIC / VM error helper routines **********/
+
 static void DOES_NOT_RETURN
 vm_abort(tbvm *vm, const char *msg)
 {
@@ -452,29 +484,6 @@ vm_abort(tbvm *vm, const char *msg)
 	vm->vm_run = false;
 	longjmp(vm->vm_abort_env, 1);
 }
-
-static void
-reset_stacks(tbvm *vm)
-{
-	vm->ondone = 0;
-	vm->cstk_ptr = 0;
-	vm->sbrstk_ptr = 0;
-	vm->aestk_ptr = 0;
-}
-
-static void
-direct_mode(tbvm *vm, int ptr)
-{
-	reset_stacks(vm);
-
-	vm->direct = true;
-	vm->pc = vm->collector_pc;
-	vm->lineno = 0;
-	vm->lbuf = vm->direct_lbuf;
-	vm->lbuf_ptr = ptr;
-}
-
-/*********** BASIC error helper routines **********/
 
 static void DOES_NOT_RETURN
 basic_error(tbvm *vm, const char *msg)
@@ -684,6 +693,7 @@ aestk_push_value(tbvm *vm, const struct value *valp)
 	if ((slot = stack_push(&vm->aestk_ptr, SIZE_AESTK)) == -1) {
 		basic_expression_error(vm);
 	}
+	value_retain(vm, valp);
 	vm->aestk[slot] = *valp;
 }
 
@@ -696,8 +706,19 @@ aestk_pop_value(tbvm *vm, int type, struct value *valp)
 		vm_abort(vm, "!EXPRESSION STACK UNDERFLOW");
 	}
 	*valp = vm->aestk[slot];
+	value_release(vm, valp);
 	if (type != VALUE_TYPE_ANY && type != valp->type) {
 		basic_wrong_type_error(vm);
+	}
+}
+
+static void
+aestk_reset(tbvm *vm)
+{
+	struct value value;
+
+	while (vm->aestk_ptr != 0) {
+		aestk_pop_value(vm, VALUE_TYPE_ANY, &value);
 	}
 }
 
@@ -723,13 +744,6 @@ aestk_pop_integer(tbvm *vm)
 static void
 aestk_push_string(tbvm *vm, string *string)
 {
-	/*
-	 * N.B. AESTK now owns the caller's reference.  When
-	 * a string is popped from AESTK, the reference ownership
-	 * is transferred back to the caller.  If the caller
-	 * needs an additional reference, it is responsible for
-	 * taking it.
-	 */
 	struct value value = {
 		.type = VALUE_TYPE_STRING,
 		.string = string,
@@ -771,9 +785,7 @@ static void
 var_init(tbvm *vm)
 {
 	for (int i = SVAR_BASE; i < NUM_VARS; i++) {
-		if (vm->vars[i].type == VALUE_TYPE_STRING) {
-			string_release(vm, vm->vars[i].string);
-		}
+		value_release(vm, &vm->vars[i]);
 	}
 	memset(vm->vars, 0, sizeof(vm->vars));
 	string_gc(vm);
@@ -836,6 +848,8 @@ var_set_value(tbvm *vm, int idx, const struct value *valp)
 	} else if (valp->type != VALUE_TYPE_INTEGER) {
 		basic_wrong_type_error(vm);
 	}
+	value_release(vm, slot);
+	value_retain(vm, valp);
 	*slot = *valp;
 }
 
@@ -854,6 +868,27 @@ default_putchar(void *v, int c)
 }
 
 /*********** Program execution helper routines **********/
+
+static void
+reset_stacks(tbvm *vm)
+{
+	vm->ondone = 0;
+	vm->cstk_ptr = 0;
+	vm->sbrstk_ptr = 0;
+	aestk_reset(vm);
+}
+
+static void
+direct_mode(tbvm *vm, int ptr)
+{
+	reset_stacks(vm);
+
+	vm->direct = true;
+	vm->pc = vm->collector_pc;
+	vm->lineno = 0;
+	vm->lbuf = vm->direct_lbuf;
+	vm->lbuf_ptr = ptr;
+}
 
 static bool
 whitespace_p(char c)
@@ -1407,11 +1442,6 @@ IMPL(JMP)
  * is found in the program text, report an error.
  * Move the cursor to the point following the closing
  * quote.
- *
- * JTTB: While PRN has been generalized in this dialect of Tiny BASIC,
- * PRS is retained because it represents an optimization - there is no
- * need to create (and subsequently dispose of) a string object for the
- * (extremely) common case of printing of an immediate string.
  */
 IMPL(PRS)
 {
@@ -1453,7 +1483,6 @@ IMPL(PRN)
 
 	case VALUE_TYPE_STRING:
 		print_string(vm, value.string);
-		string_release(vm, value.string);
 		break;
 
 	default:
@@ -1657,9 +1686,6 @@ IMPL(POP)
 {
 	struct value value;
 	aestk_pop_value(vm, VALUE_TYPE_ANY, &value);
-	if (value.type == VALUE_TYPE_STRING) {
-		string_release(vm, value.string);
-	}
 }
 
 static bool
@@ -1887,8 +1913,6 @@ IMPL(ADD)
 		string *string = string_concatenate(vm,
 		    val1.string, val2.string);
 		aestk_push_string(vm, string);
-		string_release(vm, val1.string);
-		string_release(vm, val2.string);
 	}
 }
 
@@ -2078,9 +2102,6 @@ IMPL(IND)
 		}
 		return;
 	}
-	if (value.type == VALUE_TYPE_STRING) {
-		string_retain(vm, value.string);
-	}
 	aestk_push_value(vm, &value);
 }
 
@@ -2195,7 +2216,7 @@ IMPL(INSRT)
  */
 IMPL(XINIT)
 {
-	vm->aestk_ptr = 0;
+	aestk_reset(vm);
 }
 
 /*
@@ -2481,7 +2502,6 @@ IMPL(STRLEN)
 {
 	string *string = aestk_pop_string(vm);
 	aestk_push_integer(vm, string->len);
-	string_release(vm, string);
 }
 
 /*
@@ -2499,7 +2519,6 @@ IMPL(ASC)
 		val = string->str[0];
 	}
 	aestk_push_integer(vm, val);
-	string_release(vm, string);
 }
 
 /*
