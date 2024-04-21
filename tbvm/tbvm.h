@@ -40,9 +40,13 @@ void	tbvm_free(tbvm *);
 
 void	tbvm_break(tbvm *);
 
-struct tbvm_console_io {
-	int	(*io_getchar)(void *);
-	void	(*io_putchar)(void *, int);
+#define	TBVM_FILE_CONSOLE	((void *)-1)
+
+struct tbvm_file_io {
+	void *	(*io_openfile)(void *, const char *, const char *);
+	void	(*io_closefile)(void *, void *);
+	int	(*io_getchar)(void *, void *);
+	void	(*io_putchar)(void *, void *, int);
 };
 
 #endif /* tbvm_h_included */

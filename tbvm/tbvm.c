@@ -122,7 +122,8 @@ struct tbvm {
 	bool		static_strings_valid;
 
 	void		*context;
-	const struct tbvm_console_io *cons_io;
+	const struct tbvm_file_io *file_io;
+	void		*cons_file;
 
 	struct value	vars[NUM_VARS];
 
@@ -146,15 +147,15 @@ struct tbvm {
 /*********** Driver interface routines **********/
 
 static inline int
-vm_io_getchar(tbvm *vm)
+vm_cons_getchar(tbvm *vm)
 {
-	return (*vm->cons_io->io_getchar)(vm->context);
+	return (*vm->file_io->io_getchar)(vm->context, vm->cons_file);
 }
 
 static inline void
-vm_io_putchar(tbvm *vm, int ch)
+vm_cons_putchar(tbvm *vm, int ch)
 {
-	(*vm->cons_io->io_putchar)(vm->context, ch);
+	(*vm->file_io->io_putchar)(vm->context, vm->cons_file, ch);
 }
 
 /*********** String routines **********/
@@ -360,7 +361,7 @@ value_release(tbvm *vm, const struct value *value)
 static void
 print_crlf(tbvm *vm)
 {
-	vm_io_putchar(vm, '\n');
+	vm_cons_putchar(vm, '\n');
 }
 
 static void
@@ -369,7 +370,7 @@ print_cstring(tbvm *vm, const char *msg)
 	const char *cp;
 
 	for (cp = msg; *cp != '\0'; cp++) {
-		vm_io_putchar(vm, *cp);
+		vm_cons_putchar(vm, *cp);
 	}
 }
 
@@ -379,7 +380,7 @@ print_strbuf(tbvm *vm, const char *str, size_t len)
 	size_t i;
 
 	for (i = 0; i < len; i++) {
-		vm_io_putchar(vm, str[i]);
+		vm_cons_putchar(vm, str[i]);
 	}
 }
 
@@ -868,19 +869,36 @@ var_set_value(tbvm *vm, int idx, const struct value *valp)
 
 /*********** Default I/O routines **********/
 
-static int
-default_getchar(void *v)
+static void *
+default_openfile(void *v, const char *fname, const char *mode)
 {
+	/* Always fails. */
+	return NULL;
+}
+
+static void
+default_closefile(void *v, void *f)
+{
+	/* Nothing. */
+}
+
+static int
+default_getchar(void *v, void *f)
+{
+	/* Just does console. */
 	return getchar();
 }
 
 static void
-default_putchar(void *v, int c)
+default_putchar(void *v, void *f, int c)
 {
+	/* Just does console. */
 	(void) putchar(c);
 }
 
-static const struct tbvm_console_io default_cons_io = {
+static const struct tbvm_file_io default_file_io = {
+	.io_openfile = default_openfile,
+	.io_closefile = default_closefile,
 	.io_getchar = default_getchar,
 	.io_putchar = default_putchar,
 };
@@ -1061,9 +1079,9 @@ list_program(tbvm *vm, int firstline, int lastline)
 			continue;
 		}
 		print_number_justified(vm, i + 1, width);
-		vm_io_putchar(vm, ' ');
+		vm_cons_putchar(vm, ' ');
 		for (cp = vm->progstore[i]; *cp != END_OF_LINE; cp++) {
-			vm_io_putchar(vm, *cp);
+			vm_cons_putchar(vm, *cp);
 		}
 		print_crlf(vm);
 	}
@@ -1104,6 +1122,7 @@ init_vm(tbvm *vm)
 	vm->lineno = 0;
 
 	vm->direct = true;
+	vm->cons_file = TBVM_FILE_CONSOLE;
 }
 
 static bool
@@ -1474,7 +1493,7 @@ IMPL(PRS)
 			basic_syntax_error(vm);
 			break;
 		}
-		vm_io_putchar(vm, c);
+		vm_cons_putchar(vm, c);
 	}
 }
 
@@ -1514,7 +1533,7 @@ IMPL(PRN)
 IMPL(SPC)
 {
 	/* XXX "Next zone"?  Just one space, for now. */
-	vm_io_putchar(vm, ' ');
+	vm_cons_putchar(vm, ' ');
 }
 
 /*
@@ -1814,7 +1833,7 @@ IMPL(INNUM)
 			direct_mode(vm, 0);
 			return;
 		}
-		ch = vm_io_getchar(vm);
+		ch = vm_cons_getchar(vm);
 		if (check_input_disconnected(vm, ch)) {
 			return;
 		}
@@ -1853,16 +1872,16 @@ IMPL(INVAR)
  get_input:
 	if (pcount) {
 		for (int i = 0; i < pcount; i++) {
-			vm_io_putchar(vm, '?');
+			vm_cons_putchar(vm, '?');
 		}
-		vm_io_putchar(vm, ' ');
+		vm_cons_putchar(vm, ' ');
 	}
 	for (ptr = 0;;) {
 		if (check_break(vm)) {
 			direct_mode(vm, 0);
 			return;
 		}
-		ch = vm_io_getchar(vm);
+		ch = vm_cons_getchar(vm);
 		if (check_input_disconnected(vm, ch)) {
 			return;
 		}
@@ -2172,7 +2191,7 @@ IMPL(GETLINE)
 		if (check_break(vm)) {
 			vm->lbuf_ptr = 0;
 		}
-		ch = vm_io_getchar(vm);
+		ch = vm_cons_getchar(vm);
 		if (check_input_disconnected(vm, ch)) {
 			return;
 		}
@@ -2663,7 +2682,7 @@ tbvm
 	tbvm *vm = calloc(1, sizeof(*vm));
 
 	vm->context = context;
-	vm->cons_io = &default_cons_io;
+	vm->file_io = &default_file_io;
 
 	return vm;
 }
