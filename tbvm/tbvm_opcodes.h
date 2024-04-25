@@ -98,8 +98,9 @@
 #define	OPC_ADVEOL	57
 #define	OPC_INVAR	58
 #define	OPC_POP		59
+#define	OPC_LDPRG	60
 
-#define	OPC___LAST	OPC_POP
+#define	OPC___LAST	OPC_LDPRG
 #define	OPC___COUNT	(OPC___LAST + 1)
 
 #define	OPC_F_LABEL	0x01

@@ -159,6 +159,7 @@ const struct opcode opcode_tab[] = {
 	{ "ADVEOL",	OPC_ADVEOL,	0 },
 	{ "INVAR",	OPC_INVAR,	0 },
 	{ "POP",	OPC_POP,	0 },
+	{ "LDPRG",	OPC_LDPRG,	0 },
 
 	{ NULL,		0,		0 },
 };

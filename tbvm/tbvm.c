@@ -124,6 +124,7 @@ struct tbvm {
 	void		*context;
 	const struct tbvm_file_io *file_io;
 	void		*cons_file;
+	void		*prog_file;
 
 	struct value	vars[NUM_VARS];
 
@@ -144,6 +145,10 @@ struct tbvm {
 	int		aestk_ptr;
 };
 
+/*********** Forward declarations **********/
+
+static void	prog_file_fini(tbvm *);
+
 /*********** Driver interface routines **********/
 
 static inline int
@@ -156,6 +161,18 @@ static inline void
 vm_cons_putchar(tbvm *vm, int ch)
 {
 	(*vm->file_io->io_putchar)(vm->context, vm->cons_file, ch);
+}
+
+static void *
+vm_io_openfile(tbvm *vm, const char *fname, const char *acc)
+{
+	return (*vm->file_io->io_openfile)(vm->context, fname, acc);
+}
+
+static void
+vm_io_closefile(tbvm *vm, void *file)
+{
+	(*vm->file_io->io_closefile)(vm->context, file);
 }
 
 /*********** String routines **********/
@@ -515,6 +532,9 @@ vm_abort(tbvm *vm, const char *msg)
 static void DOES_NOT_RETURN
 basic_error(tbvm *vm, const char *msg)
 {
+	if (vm->prog_file != NULL) {
+		prog_file_fini(vm);
+	}
 	print_cstring(vm, msg);
 	if (! vm->direct) {
 		print_cstring(vm, " AT LINE ");
@@ -602,6 +622,12 @@ static void DOES_NOT_RETURN
 basic_wrong_type_error(tbvm *vm)
 {
 	basic_error(vm, "?WRONG VALUE TYPE");
+}
+
+static void DOES_NOT_RETURN
+basic_file_not_found_error(tbvm *vm)
+{
+	basic_error(vm, "?FILE NOT FOUND");
 }
 
 /*********** Generic stack routines **********/
@@ -939,6 +965,15 @@ direct_mode(tbvm *vm, int ptr)
 	vm->lbuf_ptr = ptr;
 }
 
+static void
+prog_file_fini(tbvm *vm)
+{
+	vm->cons_file = TBVM_FILE_CONSOLE;
+	vm_io_closefile(vm, vm->prog_file);
+	vm->prog_file = NULL;
+	direct_mode(vm, 0);
+}
+
 static bool
 whitespace_p(char c)
 {
@@ -1156,10 +1191,12 @@ static bool
 check_input_disconnected(tbvm *vm, char ch)
 {
 	if (ch == EOF) {
-		print_crlf(vm);
-		print_cstring(vm, "INPUT DISCONNECTED. GOODBYE.");
-		print_crlf(vm);
-		vm->vm_run = false;
+		if (vm->cons_file == TBVM_FILE_CONSOLE) {
+			print_crlf(vm);
+			print_cstring(vm, "INPUT DISCONNECTED. GOODBYE.");
+			print_crlf(vm);
+			vm->vm_run = false;
+		}
 		return true;
 	}
 	return false;
@@ -2194,7 +2231,7 @@ IMPL(GETLINE)
 	vm->lbuf = vm->direct_lbuf;
 	vm->lbuf_ptr = 0;
 
-	if (! vm->suppress_prompt) {
+	if (! vm->suppress_prompt && vm->prog_file == NULL) {
 		print_cstring(vm, "OK");
 		print_crlf(vm);
 	}
@@ -2206,6 +2243,10 @@ IMPL(GETLINE)
 		}
 		ch = vm_cons_getchar(vm);
 		if (check_input_disconnected(vm, ch)) {
+			if (vm->cons_file == vm->prog_file) {
+				/* Finished loading a program. */
+				prog_file_fini(vm);
+			}
 			return;
 		}
 		if (check_input_eol(vm, ch, vm->lbuf, &vm->lbuf_ptr)) {
@@ -2262,10 +2303,40 @@ IMPL(INSRT)
 }
 
 /*
+ * Load a program into the program store.  This is accomplished
+ * by opening the program file, setting it as the console file,
+ * and then entering the line collector routine.  The GETLINE
+ * opcode will then detect the EOL condition from the program
+ * file and switch back to the standard console file.
+ */
+IMPL(LDPRG)
+{
+	string *filename = string_terminate(vm, aestk_pop_string(vm));
+
+	vm->prog_file = vm_io_openfile(vm, filename->str, "I");
+	if (vm->prog_file == NULL) {
+		basic_file_not_found_error(vm);
+	}
+
+	progstore_init(vm);
+	var_init(vm);
+	reset_stacks(vm);
+
+	vm->cons_file = vm->prog_file;
+	vm->pc = vm->collector_pc;
+}
+
+/*
  * Perform initialization for each statement execution. Empties AEXP stack.
  */
 IMPL(XINIT)
 {
+	/*
+	 * A statement while loading a program is no bueno.
+	 */
+	if (vm->prog_file != NULL) {
+		basic_syntax_error(vm);
+	}
 	aestk_reset(vm);
 }
 
@@ -2683,6 +2754,7 @@ static opc_impl_func_t opc_impls[OPC___COUNT] = {
 	OPC(ADVEOL),
 	OPC(INVAR),
 	OPC(POP),
+	OPC(LDPRG),
 };
 
 #undef OPC

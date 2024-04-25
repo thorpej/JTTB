@@ -94,6 +94,12 @@
 ;
 ; ==> Added optional prompt support to INPUT, using PRS VM insn.
 ;
+; ==> Adjusted the line collector routine so that blank lines do not
+;     result in a syntax error (they are merely ignored).
+;
+; ==> Implemented the LOAD command to load a progam into the program
+;     store using the new LDPRG VM insn.
+;
 ;
 ; Original Tiny BASIC VM opcodes that are no longer used:
 ; ==> CMPR (replaced by CMPRX)
@@ -388,6 +394,15 @@ CLR1:	TST	notCLR,'NEW'	; NEW is a synonym.
 CLR2:	DONE			; End of statement.
 	JMP	START		; Re-initialize VM.
 notCLR:
+
+	;
+	; LOAD "characterstring"
+	;
+	TST	notLOAD,'LOAD'	; LOAD command?
+	TSTS	Serr		; Push file name onto AESTK.
+	DONE			; End of statement.
+	LDPRG			; Go load the program. Returns to direct mode.
+notLOAD:
 
 	;
 	; EXIT
