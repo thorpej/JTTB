@@ -100,6 +100,9 @@
 ; ==> Implemented the LOAD command to load a progam into the program
 ;     store using the new LDPRG VM insn.
 ;
+; ==> Implemented the SAVE command to save the program in the program
+;     store using the new SVPRG VM insn.
+;
 ;
 ; Original Tiny BASIC VM opcodes that are no longer used:
 ; ==> CMPR (replaced by CMPRX)
@@ -403,6 +406,15 @@ notCLR:
 	DONE			; End of statement.
 	LDPRG			; Go load the program. Returns to direct mode.
 notLOAD:
+
+	;
+	; SAVE "characterstring"
+	;
+	TST	notSAVE,'SAVE'	; SAVE command?
+	TSTS	Serr		; Push file name onto AESTK.
+	DONE			; End of statement.
+	SVPRG			; Go save the program. Returns to direct mode.
+notSAVE:
 
 	;
 	; EXIT

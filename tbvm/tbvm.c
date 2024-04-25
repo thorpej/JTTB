@@ -2327,6 +2327,29 @@ IMPL(LDPRG)
 }
 
 /*
+ * Save the program in the program store.  This is accomplished
+ * by opening the program file, setting it as the console file,
+ * and then listing the program.  Once the program listing is
+ * complete, the file is closed and we switch back to the standard
+ * console file.
+ */
+IMPL(SVPRG)
+{
+	string *filename = string_terminate(vm, aestk_pop_string(vm));
+	void *file = vm_io_openfile(vm, filename->str, "O");
+
+	if (file == NULL) {
+		basic_file_not_found_error(vm);
+	}
+
+	vm->cons_file = file;
+	list_program(vm, 0, 0);
+	vm->cons_file = TBVM_FILE_CONSOLE;
+	vm_io_closefile(vm, file);
+	direct_mode(vm, 0);
+}
+
+/*
  * Perform initialization for each statement execution. Empties AEXP stack.
  */
 IMPL(XINIT)
@@ -2755,6 +2778,7 @@ static opc_impl_func_t opc_impls[OPC___COUNT] = {
 	OPC(INVAR),
 	OPC(POP),
 	OPC(LDPRG),
+	OPC(SVPRG),
 };
 
 #undef OPC
