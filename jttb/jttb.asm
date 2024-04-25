@@ -111,9 +111,12 @@ START:	INIT			; Initialize the VM.
 ; *** Line collector
 ;
 CO:	GETLINE			; Write prompt and get line.
-	TSTL	XEC		; Test for line numer.
+	TSTL	CO1		; Test for line numer.
 	INSRT			; Insert (or delete) line.
 	JMP	CO		; Get another line.
+CO1:
+	TSTEOL	XEC		; Check for EOL (blank line).
+	JMP	CO		; Yup, just get another line.
 
 ;
 ; *** Statement executor
