@@ -2853,6 +2853,8 @@ tbvm
 	vm->context = context;
 	vm->file_io = &default_file_io;
 
+	init_vm(vm);
+
 	return vm;
 }
 
@@ -2869,9 +2871,8 @@ tbvm_set_time_io(tbvm *vm, const struct tbvm_time_io *io)
 }
 
 void
-tbvm_exec(tbvm *vm, const char *prog, size_t progsize)
+tbvm_set_prog(tbvm *vm, const char *prog, size_t progsize)
 {
-
 	vm->vm_prog = prog;
 	vm->vm_progsize = progsize;
 
@@ -2888,9 +2889,30 @@ tbvm_exec(tbvm *vm, const char *prog, size_t progsize)
 
 	vm->pc = vm->opc_pc = 0;
 	vm->vm_progsize -= (OPC_LBL_SIZE * 2);
+}
 
-	init_vm(vm);
+static void
+tbvm_runprog(tbvm *vm)
+{
+	if (vm->vm_run && (vm->vm_prog == NULL || vm->vm_progsize == 0)) {
+		vm_abort(vm, "!NO VM PROG");
+	}
 
+	while (vm->vm_run) {
+		string_gc(vm);
+		check_break(vm);
+		vm->opc = (unsigned char)get_opcode(vm);
+		if (vm->opc > OPC___LAST || opc_impls[vm->opc] == NULL) {
+			vm_abort(vm, "!UNDEFINED VM OPCODE");
+		}
+		(*opc_impls[vm->opc])(vm);
+		vm->vm_insns++;
+	}
+}
+
+void
+tbvm_exec(tbvm *vm)
+{
 	vm->vm_run = true;
 
 	if (setjmp(vm->vm_abort_env)) {
@@ -2905,16 +2927,7 @@ tbvm_exec(tbvm *vm, const char *prog, size_t progsize)
 		direct_mode(vm, 0);
 	}
 
-	while (vm->vm_run) {
-		string_gc(vm);
-		check_break(vm);
-		vm->opc = (unsigned char)get_opcode(vm);
-		if (vm->opc > OPC___LAST || opc_impls[vm->opc] == NULL) {
-			vm_abort(vm, "!UNDEFINED VM OPCODE");
-		}
-		(*opc_impls[vm->opc])(vm);
-		vm->vm_insns++;
-	}
+	tbvm_runprog(vm);
 }
 
 void

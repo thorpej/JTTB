@@ -148,9 +148,10 @@ main(int argc, char *argv[])
 	signal(SIGINT, sigint_handler);
 
 	vm = tbvm_alloc(NULL);
+	tbvm_set_prog(vm, tbvm_program, sizeof(tbvm_program));
 	tbvm_set_file_io(vm, &jttb_file_io);
 	tbvm_set_time_io(vm, &jttb_time_io);
-	tbvm_exec(vm, tbvm_program, sizeof(tbvm_program));
+	tbvm_exec(vm);
 	tbvm_free(vm);
 
 	return 0;
