@@ -106,6 +106,7 @@ struct tbvm {
 	unsigned int	pc;	/* VM program counter */
 	unsigned int	opc_pc;	/* VM program counter of current opcode */
 	unsigned char	opc;	/* current opcode */
+	unsigned long	vm_insns;/* number of insns executed */
 
 	unsigned int	collector_pc;	/* VM address of collector routine */
 	unsigned int	executor_pc;	/* VM address of executor routine */
@@ -2893,6 +2894,7 @@ tbvm_exec(tbvm *vm, const char *prog, size_t progsize)
 			vm_abort(vm, "!UNDEFINED VM OPCODE");
 		}
 		(*opc_impls[vm->opc])(vm);
+		vm->vm_insns++;
 	}
 }
 
