@@ -33,6 +33,7 @@
 #include <stdbool.h>
 #include <stdio.h>
 #include <signal.h>
+#include <time.h>
 
 #include "../tbvm/tbvm.h"
 #include "jttb_vmprog.h"
@@ -123,6 +124,22 @@ static const struct tbvm_file_io jttb_file_io = {
 	.io_putchar = jttb_putchar,
 };
 
+static bool
+jttb_gettime(void *vctx, unsigned long *secsp)
+{
+	struct timespec ts;
+
+	if (clock_gettime(CLOCK_REALTIME, &ts) == 0) {
+		*secsp = ts.tv_sec;
+		return true;
+	}
+	return false;
+}
+
+static const struct tbvm_time_io jttb_time_io = {
+	.io_gettime = jttb_gettime,
+};
+
 int
 main(int argc, char *argv[])
 {
@@ -132,6 +149,7 @@ main(int argc, char *argv[])
 
 	vm = tbvm_alloc(NULL);
 	tbvm_set_file_io(vm, &jttb_file_io);
+	tbvm_set_time_io(vm, &jttb_time_io);
 	tbvm_exec(vm, tbvm_program, sizeof(tbvm_program));
 	tbvm_free(vm);
 

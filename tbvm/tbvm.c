@@ -184,8 +184,7 @@ static bool
 vm_io_gettime(tbvm *vm, unsigned long *timep)
 {
 	if (vm->time_io != NULL) {
-		*timep = (*vm->time_io->io_gettime)(vm->context);
-		return true;
+		return (*vm->time_io->io_gettime)(vm->context, timep);
 	}
 	return false;
 }
