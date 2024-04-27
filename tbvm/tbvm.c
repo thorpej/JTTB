@@ -126,6 +126,8 @@ struct tbvm {
 	void		*cons_file;
 	void		*prog_file;
 
+	const struct tbvm_time_io *time_io;
+
 	unsigned int	rand_seed;
 
 	struct value	vars[NUM_VARS];
@@ -175,6 +177,16 @@ static void
 vm_io_closefile(tbvm *vm, void *file)
 {
 	(*vm->file_io->io_closefile)(vm->context, file);
+}
+
+static bool
+vm_io_gettime(tbvm *vm, unsigned long *timep)
+{
+	if (vm->time_io != NULL) {
+		*timep = (*vm->time_io->io_gettime)(vm->context);
+		return true;
+	}
+	return false;
 }
 
 /*********** String routines **********/
@@ -2828,6 +2840,12 @@ void
 tbvm_set_file_io(tbvm *vm, const struct tbvm_file_io *io)
 {
 	vm->file_io = io;
+}
+
+void
+tbvm_set_time_io(tbvm *vm, const struct tbvm_time_io *io)
+{
+	vm->time_io = io;
 }
 
 void

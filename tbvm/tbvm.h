@@ -51,4 +51,10 @@ struct tbvm_file_io {
 
 void	tbvm_set_file_io(tbvm *, const struct tbvm_file_io *);
 
+struct tbvm_time_io {
+	unsigned long (*io_gettime)(void *);
+};
+
+void	tbvm_set_time_io(tbvm *, const struct tbvm_time_io *);
+
 #endif /* tbvm_h_included */
