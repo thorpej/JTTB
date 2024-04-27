@@ -126,6 +126,8 @@ struct tbvm {
 	void		*cons_file;
 	void		*prog_file;
 
+	unsigned int	rand_seed;
+
 	struct value	vars[NUM_VARS];
 
 	char		direct_lbuf[SIZE_LBUF];
@@ -1177,6 +1179,8 @@ init_vm(tbvm *vm)
 
 	vm->direct = true;
 	vm->cons_file = TBVM_FILE_CONSOLE;
+
+	vm->rand_seed = 1;
 }
 
 static bool
@@ -2508,7 +2512,8 @@ IMPL(RND)
 	int num = aestk_pop_integer(vm);
 
 	if (num > 1) {
-		aestk_push_integer(vm, (rand() / (RAND_MAX / num + 1)) + 1);
+		aestk_push_integer(vm,
+		    (rand_r(&vm->rand_seed) / (RAND_MAX / num + 1)) + 1);
 	} else {
 		basic_number_range_error(vm);
 	}
