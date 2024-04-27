@@ -100,8 +100,9 @@
 #define	OPC_POP		59
 #define	OPC_LDPRG	60
 #define	OPC_SVPRG	61
+#define	OPC_DONEM	62
 
-#define	OPC___LAST	OPC_SVPRG
+#define	OPC___LAST	OPC_DONEM
 #define	OPC___COUNT	(OPC___LAST + 1)
 
 #define	OPC_F_LABEL	0x01

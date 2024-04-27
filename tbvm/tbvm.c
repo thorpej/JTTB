@@ -630,6 +630,12 @@ basic_file_not_found_error(tbvm *vm)
 	basic_error(vm, "?FILE NOT FOUND");
 }
 
+static void DOES_NOT_RETURN
+basic_wrong_mode_error(tbvm *vm)
+{
+	basic_error(vm, "?WRONG MODE");
+}
+
 /*********** Generic stack routines **********/
 
 static int
@@ -1495,6 +1501,22 @@ IMPL(DONE)
 	if (c != END_OF_LINE) {
 		basic_syntax_error(vm);
 	}
+}
+
+/*
+ * Like DONE, but we first check to make sure we're in the correct mode.
+ * 1 = DIRECT mode, 0 = RUN mode.
+ */
+IMPL(DONEM)
+{
+	int mode = get_literal(vm);
+
+	if ((mode == 0 && vm->direct) ||
+	    (mode == 1 && !vm->direct)) {
+		basic_wrong_mode_error(vm);
+	}
+
+	OPC_DONE_impl(vm);
 }
 
 /*
@@ -2779,6 +2801,7 @@ static opc_impl_func_t opc_impls[OPC___COUNT] = {
 	OPC(POP),
 	OPC(LDPRG),
 	OPC(SVPRG),
+	OPC(DONEM),
 };
 
 #undef OPC

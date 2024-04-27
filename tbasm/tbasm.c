@@ -161,6 +161,7 @@ const struct opcode opcode_tab[] = {
 	{ "POP",	OPC_POP,	0 },
 	{ "LDPRG",	OPC_LDPRG,	0 },
 	{ "SVPRG",	OPC_SVPRG,	0 },
+	{ "DONEM",	OPC_DONEM,	OPC_F_NUMBER },
 
 	{ NULL,		0,		0 },
 };

@@ -103,6 +103,9 @@
 ; ==> Implemented the SAVE command to save the program in the program
 ;     store using the new SVPRG VM insn.
 ;
+; ==> Added a new DONEM VM insn that, when used, limits commands to
+;     RUN-mode or DIRECT-mode.
+;
 ;
 ; Original Tiny BASIC VM opcodes that are no longer used:
 ; ==> CMPR (replaced by CMPRX)
@@ -152,12 +155,12 @@ notLET:
 	TST	notGO,'GO'	; GOTO or GOSUB statement?
 	TST	notGOTO,'TO'	; GOTO?
 	CALL	EXPR		; Yes, get target.
-	DONE			; End of statement.
+	DONEM	0		; End of statement (RUN-mode).
 	XFER			; Jump to target.
 notGOTO:
 	TST	Serr,'SUB'	; GOSUB?
 	CALL	EXPR		; Yes, get target.
-	DONE			; End of statement.
+	DONEM	0		; End of statement (RUN-mode).
 	SAV			; Save return location.
 	XFER			; Jump to target.
 notGO:
@@ -281,7 +284,7 @@ notIF:
 	CALL	EXPR		; Get step expression.
 	STEP			; Adjust STEP count from default.
 noSTEP:
-	DONE			; End of statement.
+	DONEM	0		; End of statement (RUN-mode).
 	NXT			; Next statement.
 notFOR:
 
@@ -290,7 +293,7 @@ notFOR:
 	;
 	TST	notNEXT,'NEXT'	; NEXT statement?
 	TSTV	Serr		; Yes, get var address.
-	DONE			; End of statement.
+	DONEM	0		; End of statement (RUN-mode).
 	NXTFOR			; Next statement according to loop cond.
 notNEXT:
 
@@ -322,7 +325,7 @@ notINPUT:
 	; RETURN
 	;
 	TST	notRTN,'RETURN'	; RETURN statement?
-	DONE			; Yes, end of statement.
+	DONEM	0		; Yes, end of statement (RUN-mode).
 	RSTR			; Restore location.
 	NXT			; Next statement.
 notRTN:
@@ -359,7 +362,7 @@ notEND:
 	TSTEOL	LST1		; Check for arguments.
 	LIT	0		; No arguments, pass 0,0 to indicate whole
 	LIT	0		; program.
-LST99:	DONE			; End of statement.
+LST99:	DONEM	1		; End of statement (DIRECT-mode).
 	LSTX			; Go do it.
 	NXT			; Next statement.
 
@@ -384,7 +387,7 @@ notLIST:
 	; RUN
 	;
 	TST	notRUN,'RUN'	; RUN command?
-	DONE			; Yes, end of statement.
+	DONEM	1		; Yes, end of statement (DIRECT-mode).
 	RUN			; changes from direct mode
 notRUN:
 
@@ -394,7 +397,7 @@ notRUN:
 	TST	CLR1,'CLEAR'	; CLEAR command?
 	JMP	CLR2
 CLR1:	TST	notCLR,'NEW'	; NEW is a synonym.
-CLR2:	DONE			; End of statement.
+CLR2:	DONEM	1		; End of statement (DIRECT-mode).
 	JMP	START		; Re-initialize VM.
 notCLR:
 
@@ -403,7 +406,7 @@ notCLR:
 	;
 	TST	notLOAD,'LOAD'	; LOAD command?
 	TSTS	Serr		; Push file name onto AESTK.
-	DONE			; End of statement.
+	DONEM	1		; End of statement (DIRECT-mode).
 	LDPRG			; Go load the program. Returns to direct mode.
 notLOAD:
 
@@ -412,7 +415,7 @@ notLOAD:
 	;
 	TST	notSAVE,'SAVE'	; SAVE command?
 	TSTS	Serr		; Push file name onto AESTK.
-	DONE			; End of statement.
+	DONEM	1		; End of statement (DIRECT-mode).
 	SVPRG			; Go save the program. Returns to direct mode.
 notSAVE:
 
