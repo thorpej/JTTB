@@ -12,27 +12,27 @@
  105 PRINT "a value between the first two."
  106 PRINT "If you do not want to bet, input a 0."
  110 PRINT
- 160 LET N=100
- 161 LET Q=100
+ 160 N=100
+ 161 Q=100
  190 PRINT "You now have "; Q; " dollars."
  195 PRINT
  200 GOTO 260
- 210 LET Q=Q+M
+ 210 Q=Q+M
  220 GOTO 190
- 240 LET Q=Q-M
+ 240 Q=Q-M
  250 GOTO 190
  260 PRINT "Here are your next two cards..."
  269 REM ORIGINAL: A=INT(14*RND(0))+2
- 270 LET A=RND(13)+1
+ 270 A=RND(13)+1
  280 IF A<2 THEN GOTO 270
  290 IF A>14 THEN GOTO 270
- 300 LET B=RND(13)+1
+ 300 B=RND(13)+1
  310 IF B<2 THEN GOTO 300
  320 IF B>14 THEN GOTO 300
  330 IF A>=B THEN GOTO 270
- 350 LET C=A
+ 350 C=A
  360 GOSUB 2000
- 500 LET C=B
+ 500 C=B
  510 GOSUB 2000
  650 PRINT
  660 INPUT "What is your bet"; M
@@ -44,7 +44,7 @@
  690 PRINT "Sorry, my friend, but you bet too much."
  700 PRINT "You only have "; Q; " dollars to bet."
  710 GOTO 650
- 730 LET C=RND(13)+1
+ 730 C=RND(13)+1
  740 IF C<2 THEN GOTO 730
  750 IF C>14 THEN GOTO 730
  760 GOSUB 2000
