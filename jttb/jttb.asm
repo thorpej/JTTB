@@ -106,6 +106,9 @@
 ; ==> Added a new DONEM VM insn that, when used, limits commands to
 ;     RUN-mode or DIRECT-mode.
 ;
+; ==> Adjusted the parser to allow bare variable assignments without
+;     the LET keyword.
+;
 ;
 ; Original Tiny BASIC VM opcodes that are no longer used:
 ; ==> CMPR (replaced by CMPRX)
@@ -141,7 +144,7 @@ STMT:	XINIT			; Initialize for a statement.
 	;
 	TST	notLET,'LET'	; LET statement?
 	TSTV	Serr		; Yes, place VAR on AESTK
-	TST	Serr,'='
+isLET:	TST	Serr,'='
 	CALL	EXPR		; Place expression value on AESTK
 	DONE			; End of statement.
 	STORE			; Store result in VAR.
@@ -426,6 +429,19 @@ notSAVE:
 	DONE			; End of statement.
 	EXIT
 notEXIT:
+
+	;
+	; ***** LAST CASE BEFORE FALLING THROUGH TO Serr *****
+	; Look for a variable name and, if it looks like we have
+	; one, jump into the middle of LET.  This will almost
+	; always match, but a real bogus statement will lack the
+	; correct syntax to match LET.
+	;
+	; This is to match the extremely-common-among-BASICs behavior
+	; of allowing variable assignments without LET.
+	;
+	TSTV	Serr		; Check for a variable.
+	JMP	isLET		; ...and try to match an assignment.
 
 Serr:	ERR			; Syntax error.
 
