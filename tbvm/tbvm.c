@@ -2533,6 +2533,25 @@ IMPL(RND)
 }
 
 /*
+ * Seed the random number generator.
+ */
+IMPL(SRND)
+{
+	int num = aestk_pop_integer(vm);
+
+	if (num != 0) {
+		vm->rand_seed = num;
+	} else {
+		unsigned long walltime;
+
+		if (! vm_io_gettime(vm, &walltime)) {
+			walltime = vm->vm_insns;
+		}
+		vm->rand_seed = (unsigned int)walltime;
+	}
+}
+
+/*
  * Take the value at the top of the AESTK and replace it with its
  * absolute value.
  */
@@ -2820,6 +2839,7 @@ static opc_impl_func_t opc_impls[OPC___COUNT] = {
 	OPC(LDPRG),
 	OPC(SVPRG),
 	OPC(DONEM),
+	OPC(SRND),
 };
 
 #undef OPC

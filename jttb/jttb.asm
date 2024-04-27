@@ -446,6 +446,22 @@ notSAVE:
 notEXIT:
 
 	;
+	; RANDOMIZE opt-expr
+	;
+	; opt-expr ::=
+	;              expr
+	;
+	TST	notSRND,'RANDOMIZE' ; RANDOMIZE command?
+	TSTEOL	SRND1		; Check for EOL.
+	LIT	0		; Yes, push 0.
+	JMP	SRND2		; Go finish.
+SRND1:	CALL	EXPR		; Get expression.
+SRND2:	DONE			; End of statement.
+	SRND			; Seed random number generator.
+	NXT			; Next statement.
+notSRND:
+
+	;
 	; ***** LAST CASE BEFORE FALLING THROUGH TO Serr *****
 	; Look for a variable name and, if it looks like we have
 	; one, jump into the middle of LET.  This will almost
