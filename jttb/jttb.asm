@@ -109,6 +109,9 @@
 ; ==> Adjusted the parser to allow bare variable assignments without
 ;     the LET keyword.
 ;
+; ==> Adjusted the parser to allow bare numbers after THEN and ELSE,
+;     which are treated as an implied GOTO.
+;
 ;
 ; Original Tiny BASIC VM opcodes that are no longer used:
 ; ==> CMPR (replaced by CMPRX)
@@ -158,7 +161,7 @@ notLET:
 	TST	notGO,'GO'	; GOTO or GOSUB statement?
 	TST	notGOTO,'TO'	; GOTO?
 	CALL	EXPR		; Yes, get target.
-	DONEM	0		; End of statement (RUN-mode).
+isGOTO:	DONEM	0		; End of statement (RUN-mode).
 	XFER			; Jump to target.
 notGOTO:
 	TST	Serr,'SUB'	; GOSUB?
@@ -250,9 +253,21 @@ notPRINT:
 	TST	Serr,'THEN'	; Check for THEN.
 	CMPRX	IF1		; Perform comparsion
 	ONDONE	IF3		; True, hook into DONE to skip possible ELSE.
-	JMP	STMT		; Perform the statement.
+	;
+	; ***** Special case *****
+	; If we find a bare number after THEN, it's an implied GOTO.
+	;
+	TSTN	IFT1		; Check for number.
+	JMP	isGOTO		; Go process implied GOTO.
+IFT1:	JMP	STMT		; Perform the statement.
 IF1:	SCAN	IF2,'ELSE'	; False, scan for an ELSE...
-	JMP	STMT		; ...and perform that statement.
+	;
+	; ***** Special case *****
+	; If we find a bare number after ELSE, it's an implied GOTO.
+	;
+	TSTN	IFE1		; Check for number.
+	JMP	isGOTO		; Go process implied GOTO.
+IFE1:	JMP	STMT		; ...and perform that statement.
 
 	;
 	; We can't really perform a DONE here.  If we do, we're just
