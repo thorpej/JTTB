@@ -6,7 +6,7 @@
   99 REM JTTB DOES NOT YET HAVE THE RANDOMIZE STATEMENT.
  100 REM RANDOMIZE
  101 PRINT "Acey-Ducey is played in the following manner:"
- 102 PRINT "The dealer (computer) ddeals two cards face up."
+ 102 PRINT "The dealer (computer) deals two cards face up."
  103 PRINT "You have the option to bet or not to bed depending"
  104 PRINT "on whether or not you feel the next card will have"
  105 PRINT "a value between the first two."
@@ -75,4 +75,3 @@
 2170 RETURN
 2180 PRINT "Ace"
 2190 RETURN
-
