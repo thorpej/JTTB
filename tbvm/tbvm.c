@@ -502,7 +502,7 @@ printed_integer_width(int num)
 }
 
 static char *
-format_number(int num, int width, char *buf)
+format_integer(int num, int width, char *buf)
 {
 	if (width) {
 		sprintf(buf, "%*d", width, num);
@@ -515,7 +515,7 @@ format_number(int num, int width, char *buf)
 static void
 print_number(tbvm *vm, int num)
 {
-	print_cstring(vm, format_number(num, 0, vm->tmp_buf));
+	print_cstring(vm, format_integer(num, 0, vm->tmp_buf));
 }
 
 /*********** BASIC / VM error helper routines **********/
@@ -1142,7 +1142,7 @@ list_program(tbvm *vm, int firstline, int lastline)
 		if (vm->progstore[i] == NULL) {
 			continue;
 		}
-		print_cstring(vm, format_number(i + 1, width, vm->tmp_buf));
+		print_cstring(vm, format_integer(i + 1, width, vm->tmp_buf));
 		vm_cons_putchar(vm, ' ');
 		for (cp = vm->progstore[i]; *cp != END_OF_LINE; cp++) {
 			vm_cons_putchar(vm, *cp);
