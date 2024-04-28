@@ -1,10 +1,13 @@
 OBJS=		tbvm.o
-CLEANFILES=	$(OBJS) libtbvm.a
+CLEANFILES=	$(OBJS) tbvm_program.h libtbvm.a
 CFLAGS=		-O0 -g -Wall -Wformat
 
 all: libtbvm.a
 
-tbvm.o: Makefile tbvm.c tbvm.h tbvm_opcodes.h
+tbvm.o: Makefile tbvm.c tbvm.h tbvm_opcodes.h tbvm_program.h
+
+tbvm_program.h: tbvm_program.asm
+	../tbasm/tbasm -H $<
 
 libtbvm.a: $(OBJS)
 	rm -f $@

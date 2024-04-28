@@ -47,6 +47,7 @@
 
 #include "tbvm.h"
 #include "tbvm_opcodes.h"
+#include "tbvm_program.h"
 
 #define	DOES_NOT_RETURN	__attribute__((__noreturn__))
 
@@ -2852,6 +2853,8 @@ tbvm
 
 	vm->context = context;
 	vm->file_io = &default_file_io;
+
+	tbvm_set_prog(vm, tbvm_program, sizeof(tbvm_program));
 
 	init_vm(vm);
 
