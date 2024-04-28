@@ -502,7 +502,7 @@ printed_number_width(int num, int base)
 }
 
 static char *
-format_number(int num, int base, int width, char *buf, size_t bufsize)
+format_number(int num, int width, char *buf, size_t bufsize)
 {
 	bool negative_p = num < 0;
 	char *cp = &buf[bufsize];
@@ -512,26 +512,11 @@ format_number(int num, int base, int width, char *buf, size_t bufsize)
 		num = -num;
 	}
 
-	if (base == 10) {
-		do {
-			*--cp = '0' + (num % 10);
-			num /= 10;
-			digits++;
-		} while (num != 0);
-	} else if (base == 16) {
-		unsigned int unum = num, n;
-		do {
-			n = unum & 0xf;
-			unum >>= 4;
-			if (n <= 9) {
-				*--cp = '0' + n;
-			} else {
-				*--cp = 'A' + (n - 10);
-			}
-		} while (unum != 0);
-	} else {
-		abort();
-	}
+	do {
+		*--cp = '0' + (num % 10);
+		num /= 10;
+		digits++;
+	} while (num != 0);
 
 	if (negative_p) {
 		*--cp = '-';
@@ -563,7 +548,7 @@ print_number_justified(tbvm *vm, int num, int width)
 	char buf[PRN_BUFSIZE];
 	char *cp;
 
-	cp = format_number(num, 10, width, buf, sizeof(buf));
+	cp = format_number(num, width, buf, sizeof(buf));
 	print_strbuf(vm, cp, &buf[PRN_BUFSIZE] - cp);
 }
 
