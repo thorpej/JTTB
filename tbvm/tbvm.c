@@ -513,7 +513,7 @@ format_integer(int num, int width, char *buf)
 }
 
 static void
-print_number(tbvm *vm, int num)
+print_integer(tbvm *vm, int num)
 {
 	print_cstring(vm, format_integer(num, 0, vm->tmp_buf));
 }
@@ -525,9 +525,9 @@ vm_abort(tbvm *vm, const char *msg)
 {
 	print_cstring(vm, msg);
 	print_cstring(vm, ", PC=");
-	print_number(vm, vm->opc_pc);
+	print_integer(vm, vm->opc_pc);
 	print_cstring(vm, ", OPC=");
-	print_number(vm, vm->opc);
+	print_integer(vm, vm->opc);
 	print_crlf(vm);
 	vm->vm_run = false;
 	longjmp(vm->vm_abort_env, 1);
@@ -542,7 +542,7 @@ basic_error(tbvm *vm, const char *msg)
 	print_cstring(vm, msg);
 	if (! vm->direct) {
 		print_cstring(vm, " AT LINE ");
-		print_number(vm, vm->lineno);
+		print_integer(vm, vm->lineno);
 	}
 	print_crlf(vm);
 	longjmp(vm->basic_error_env, 1);
@@ -1599,7 +1599,7 @@ IMPL(PRN)
 
 	switch (value.type) {
 	case VALUE_TYPE_INTEGER:
-		print_number(vm, value.integer);
+		print_integer(vm, value.integer);
 		break;
 
 	case VALUE_TYPE_STRING:
