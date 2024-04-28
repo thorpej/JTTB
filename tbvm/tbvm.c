@@ -695,6 +695,12 @@ basic_wrong_mode_error(tbvm *vm)
 	basic_error(vm, "?WRONG MODE");
 }
 
+static void DOES_NOT_RETURN
+basic_illegal_quantity_error(tbvm *vm)
+{
+	basic_error(vm, "?ILLEGAL QUANTITY");
+}
+
 /*********** Generic stack routines **********/
 
 static int
@@ -2655,24 +2661,19 @@ IMPL(TSTS)
 	advance_cursor(vm, i + 1);	/* advance past DQUOTE */
 }
 
-static void
-num_to_string(tbvm *vm, int base)
-{
-	int num = aestk_pop_integer(vm);
-	int width = printed_number_width(num, base);
-	string *string = string_alloc(vm, NULL, width, 0);
-	char *cp = format_number(num, base, 0, string->str, width);
-	assert(cp == string->str);
-	aestk_push_string(vm, string);
-}
-
 /*
  * Replace the numeric value on the AESTK with a string representation
  * of that number.
  */
 IMPL(STR)
 {
-	num_to_string(vm, 10);
+	int num = aestk_pop_integer(vm);
+	char *cp = vm->tmp_buf;
+
+	sprintf(vm->tmp_buf, "%d", num);
+
+	string *string = string_alloc(vm, cp, strlen(cp), 0);
+	aestk_push_string(vm, string);
 }
 
 /*
@@ -2681,7 +2682,33 @@ IMPL(STR)
  */
 IMPL(HEX)
 {
-	num_to_string(vm, 16);
+	int num = aestk_pop_integer(vm);
+	char *cp = &vm->tmp_buf[SIZE_LBUF];
+	unsigned int unum = num, n;
+	int digits = 0;
+
+	if (num < 0) {
+		basic_illegal_quantity_error(vm);
+	}
+
+	*--cp = '\0';
+	do {
+		n = unum & 0xf;
+		unum >>= 4;
+		if (n <= 9) {
+			*--cp = '0' + n;
+		} else {
+			*--cp = 'A' + (n - 10);
+		}
+		digits++;
+	} while (unum != 0);
+
+	if (digits & 1) {
+		*--cp = '0';
+	}
+
+	string *string = string_alloc(vm, cp, strlen(cp), 0);
+	aestk_push_string(vm, string);
 }
 
 /*
