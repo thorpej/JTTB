@@ -403,6 +403,50 @@ value_release(tbvm *vm, const struct value *value)
 
 /*********** Print formatting helper routines **********/
 
+/*
+ * Just some notes on MS BASIC number formatting:
+ *
+ * A=1.123456789123456789
+ * print A
+ * -> 1.12345679
+ *
+ * print A/10
+ * -> .112345679
+ *
+ * print A/100
+ * -> .0112345679
+ *
+ * print A/1000
+ * -> 1.12345679E-03
+ *
+ * print A*10
+ * -> 11.2345679
+ *
+ * print A*100
+ * -> 112.345679
+ *
+ * print A*1000
+ * -> 1123.45679
+ *
+ * print A*10000
+ * -> 11234.5679
+ *
+ * print A*100000
+ * -> 112345.679
+ *
+ * print A*1000000
+ * -> 1123456.79
+ *
+ * print A*10000000
+ * -> 11234567.9
+ *
+ * print A*100000000
+ * -> 112345679
+ *
+ * print A*1000000000
+ * -> 1.12345679E+09
+ */
+
 static void
 print_crlf(tbvm *vm)
 {
