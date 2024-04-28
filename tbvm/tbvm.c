@@ -480,7 +480,7 @@ print_string(tbvm *vm, string *string)
 }
 
 static int
-printed_number_width(int num, int base)
+printed_integer_width(int num)
 {
 	bool negative_p = false;
 	int width;
@@ -492,7 +492,7 @@ printed_number_width(int num, int base)
 		negative_p = true;
 		num = -num;
 	}
-	for (width = 0; num != 0; num /= base) {
+	for (width = 0; num != 0; num /= 10) {
 		width++;
 	}
 	if (negative_p) {
@@ -502,60 +502,20 @@ printed_number_width(int num, int base)
 }
 
 static char *
-format_number(int num, int width, char *buf, size_t bufsize)
+format_number(int num, int width, char *buf)
 {
-	bool negative_p = num < 0;
-	char *cp = &buf[bufsize];
-	int digits = 0;
-
-	if (negative_p) {
-		num = -num;
+	if (width) {
+		sprintf(buf, "%*d", width, num);
+	} else {
+		sprintf(buf, "%d", num);
 	}
-
-	do {
-		*--cp = '0' + (num % 10);
-		num /= 10;
-		digits++;
-	} while (num != 0);
-
-	if (negative_p) {
-		*--cp = '-';
-		digits++;
-	}
-
-	if (width != 0) {
-		if (width > bufsize) {
-			width = bufsize;
-		}
-		while (digits < width) {
-			*--cp = ' ';
-			digits++;
-		}
-	}
-
-	return cp;
-}
-
-static void
-print_number_justified(tbvm *vm, int num, int width)
-{
-	/*
-	 * Largest integer number is "2147483647", which is 10
-	 * digits.  Allow an extra byte for "-" in case it's
-	 * negative.
-	 */
-#define	PRN_BUFSIZE	11
-	char buf[PRN_BUFSIZE];
-	char *cp;
-
-	cp = format_number(num, width, buf, sizeof(buf));
-	print_strbuf(vm, cp, &buf[PRN_BUFSIZE] - cp);
+	return buf;
 }
 
 static void
 print_number(tbvm *vm, int num)
 {
-	print_number_justified(vm, num, 0);
+	print_cstring(vm, format_number(num, 0, vm->tmp_buf));
 }
 
 /*********** BASIC / VM error helper routines **********/
@@ -1177,12 +1137,12 @@ list_program(tbvm *vm, int firstline, int lastline)
 		basic_syntax_error(vm);
 	}
 
-	width = printed_number_width(lastline, 10);
+	width = printed_integer_width(lastline);
 	for (i = firstline - 1; i < lastline; i++) {
 		if (vm->progstore[i] == NULL) {
 			continue;
 		}
-		print_number_justified(vm, i + 1, width);
+		print_cstring(vm, format_number(i + 1, width, vm->tmp_buf));
 		vm_cons_putchar(vm, ' ');
 		for (cp = vm->progstore[i]; *cp != END_OF_LINE; cp++) {
 			vm_cons_putchar(vm, *cp);
