@@ -2684,10 +2684,27 @@ IMPL(RND)
  */
 IMPL(SRND)
 {
-	double num = aestk_pop_float(vm);
+	struct value val;
+	double seed;
 
-	if (num != 0.0) {
-		vm->rand_seed = (unsigned int)floor(fabs(num));
+	aestk_pop_value(vm, VALUE_TYPE_ANY, &val);
+
+	switch (val.type) {
+	case VALUE_TYPE_INTEGER:
+		seed = (double)val.integer;
+		break;
+
+	case VALUE_TYPE_FLOAT:
+		seed = val.fpnumber;
+		break;
+
+	default:
+		basic_wrong_type_error(vm);
+		break;
+	}
+
+	if (seed != 0.0) {
+		vm->rand_seed = (unsigned int)floor(fabs(seed));
 	} else {
 		unsigned long walltime;
 
