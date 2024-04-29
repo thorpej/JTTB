@@ -22,11 +22,10 @@
  240 Q=Q-M
  250 GOTO 190
  260 PRINT "Here are your next two cards..."
- 269 REM ORIGINAL: A=INT(14*RND(0))+2
- 270 A=RND(13)+1
+ 270 A=INT(14*RND(0))+2
  280 IF A<2 THEN 270
  290 IF A>14 THEN 270
- 300 B=RND(13)+1
+ 300 B=INT(14*RND(0))+2
  310 IF B<2 THEN 300
  320 IF B>14 THEN 300
  330 IF A>=B THEN 270
@@ -44,7 +43,7 @@
  690 PRINT "Sorry, my friend, but you bet too much."
  700 PRINT "You only have "; Q; " dollars to bet."
  710 GOTO 650
- 730 C=RND(13)+1
+ 730 C=INT(14*RND(0))+2
  740 IF C<2 THEN 730
  750 IF C>14 THEN 730
  760 GOSUB 2000
