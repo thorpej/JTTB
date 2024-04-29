@@ -2169,6 +2169,7 @@ parse_number(tbvm *vm, bool advance, int *valp)
 	char c;
 
 	skip_whitespace(vm);
+
 	for (count = 0;;) {
 		c = peek_linebyte(vm, count);
 		if (c < '0' || c > '9') {
@@ -2185,6 +2186,37 @@ parse_number(tbvm *vm, bool advance, int *valp)
 		return true;
 	}
 	return false;
+}
+
+static bool
+parse_integer(tbvm *vm, bool advance, int *valp)
+{
+	long val;
+	char *cp;
+
+	skip_whitespace(vm);
+
+	/*
+	 * Disallow unary + or - characters.  Those are handled by
+	 * expressions.
+	 */
+	if (vm->lbuf[vm->lbuf_ptr] == '+' ||
+	    vm->lbuf[vm->lbuf_ptr] == '-') {
+		return false;
+	}
+
+	val = strtol(&vm->lbuf[vm->lbuf_ptr], &cp, 10);
+	if (cp == &vm->lbuf[vm->lbuf_ptr]) {
+		return false;
+	}
+	if (val < INT_MIN || val > INT_MAX) {
+		basic_illegal_quantity_error(vm);
+	}
+	if (advance) {
+		advance_cursor(vm, cp - &vm->lbuf[vm->lbuf_ptr]);
+	}
+	*valp = (int)val;
+	return true;
 }
 
 /*
@@ -2307,7 +2339,7 @@ IMPL(TSTL)
 	int label = get_label(vm);
 	int val;
 
-	if (parse_number(vm, false, &val)) {
+	if (parse_integer(vm, false, &val)) {
 		if (val < 1 || val > MAX_LINENO) {
 			basic_line_number_error(vm);
 		}
@@ -2323,7 +2355,7 @@ IMPL(INSRT)
 {
 	int val;
 
-	if (!parse_number(vm, true, &val) ||
+	if (!parse_integer(vm, true, &val) ||
 	    val < 1 || val > MAX_LINENO) {
 		basic_line_number_error(vm);
 	}
