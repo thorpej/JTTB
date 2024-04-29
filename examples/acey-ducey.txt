@@ -23,9 +23,11 @@
  250 GOTO 190
  260 PRINT "Here are your next two cards..."
  270 A=INT(14*RND(0))+2
+ 271 print "A=";A
  280 IF A<2 THEN 270
  290 IF A>14 THEN 270
  300 B=INT(14*RND(0))+2
+ 301 print "B=";B
  310 IF B<2 THEN 300
  320 IF B>14 THEN 300
  330 IF A>=B THEN 270

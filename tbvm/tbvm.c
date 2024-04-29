@@ -1784,7 +1784,7 @@ compare(tbvm *vm)
 		if (val1.type == VALUE_TYPE_STRING) {
 			result = string_compare(val1.string, val2.string) == 0;
 		} else {
-			result = val1.integer == val2.integer;
+			result = val1.fpnumber == val2.fpnumber;
 		}
 		break;
 	
@@ -1792,7 +1792,7 @@ compare(tbvm *vm)
 		if (val1.type == VALUE_TYPE_STRING) {
 			result = string_compare(val1.string, val2.string) < 0;
 		} else {
-			result = val1.integer < val2.integer;
+			result = val1.fpnumber < val2.fpnumber;
 		}
 		break;
 	
@@ -1800,7 +1800,7 @@ compare(tbvm *vm)
 		if (val1.type == VALUE_TYPE_STRING) {
 			result = string_compare(val1.string, val2.string) <= 0;
 		} else {
-			result = val1.integer <= val2.integer;
+			result = val1.fpnumber <= val2.fpnumber;
 		}
 		break;
 	
@@ -1808,7 +1808,7 @@ compare(tbvm *vm)
 		if (val1.type == VALUE_TYPE_STRING) {
 			result = string_compare(val1.string, val2.string) != 0;
 		} else {
-			result = val1.integer != val2.integer;
+			result = val1.fpnumber != val2.fpnumber;
 		}
 		break;
 	
@@ -1816,7 +1816,7 @@ compare(tbvm *vm)
 		if (val1.type == VALUE_TYPE_STRING) {
 			result = string_compare(val1.string, val2.string) > 0;
 		} else {
-			result = val1.integer > val2.integer;
+			result = val1.fpnumber > val2.fpnumber;
 		}
 		break;
 	
@@ -1824,7 +1824,7 @@ compare(tbvm *vm)
 		if (val1.type == VALUE_TYPE_STRING) {
 			result = string_compare(val1.string, val2.string) >= 0;
 		} else {
-			result = val1.integer >= val2.integer;
+			result = val1.fpnumber >= val2.fpnumber;
 		}
 		break;
 	
