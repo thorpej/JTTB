@@ -916,7 +916,7 @@ var_slot(tbvm *vm, int idx)
 	return &vm->vars[idx];
 }
 
-static int
+static double
 var_get_float(tbvm *vm, int idx)
 {
 	struct value *slot = var_slot(vm, idx);
@@ -2629,6 +2629,7 @@ IMPL(NXTFOR)
 		basic_next_error(vm);
 	}
 	newval = var_get_float(vm, var) + subr.step;
+	check_math_error(vm);
 
 	if (subr.step < 0) {
 		if (newval < subr.end_val) {
