@@ -2900,7 +2900,7 @@ IMPL(CHR)
  * Pops the number value from the AESTK, converts it to an integer, and
  * pushes the result.
  */
-IMPL(INTVAL)
+IMPL(FIX)
 {
 	double val = aestk_pop_float(vm);	/* acts as type check */
 
@@ -2909,6 +2909,27 @@ IMPL(INTVAL)
 	} else {
 		val = ceil(val);
 	}
+	check_math_error(vm);
+	aestk_push_float(vm, val);
+}
+
+/*
+ * Pops the number value from the AESTK and performs the floor() function.
+ */
+IMPL(FLR)
+{
+	double val = floor(aestk_pop_float(vm));
+	check_math_error(vm);
+	aestk_push_float(vm, val);
+}
+
+/*
+ * Pops the number value from the AESTK and performs the ceil() function.
+ */
+IMPL(CEIL)
+{
+	double val = ceil(aestk_pop_float(vm));
+	check_math_error(vm);
 	aestk_push_float(vm, val);
 }
 
@@ -2992,7 +3013,7 @@ static opc_impl_func_t opc_impls[OPC___COUNT] = {
 	OPC(STRLEN),
 	OPC(ASC),
 	OPC(CHR),
-	OPC(INTVAL),
+	OPC(FIX),
 	OPC(SGN),
 	OPC(SCAN),
 	OPC(ONDONE),
@@ -3003,6 +3024,8 @@ static opc_impl_func_t opc_impls[OPC___COUNT] = {
 	OPC(SVPRG),
 	OPC(DONEM),
 	OPC(SRND),
+	OPC(FLR),
+	OPC(CEIL),
 };
 
 #undef OPC

@@ -112,6 +112,10 @@
 ; ==> Adjusted the parser to allow bare numbers after THEN and ELSE,
 ;     which are treated as an implied GOTO.
 ;
+; ==> Added FIX() as another name for INT().
+;
+; ==> Added FLOOR() and CEIL() functions using new FLR and CEIL VM insns.
+;
 ;
 ; Original Tiny BASIC VM opcodes that are no longer used:
 ; ==> CMPR (replaced by CMPRX)
@@ -600,11 +604,25 @@ notVAL:
 	RTN
 notLEN:
 
-	TST	notINT,'INT'	; INT() function?
-	CALL	FUNC1ARG
+	TST	FIX1,'FIX'	; FIX() function?
+	JMP	FIX2
+FIX1:	TST	notFIX,'INT'	; INT() is an alias
+FIX2:	CALL	FUNC1ARG
 	FIX
 	RTN
-notINT:
+notFIX:
+
+	TST	notFLOOR,'FLOOR' ; FLOOR() function?
+	CALL	FUNC1ARG
+	FLR
+	RTN
+notFLOOR:
+
+	TST	notCEIL,'CEIL'	; CEIL() function
+	CALL	FUNC1ARG
+	CEIL
+	RTN
+notCEIL:
 
 	TST	notSGN,'SGN'	; SGN() function?
 	CALL	FUNC1ARG

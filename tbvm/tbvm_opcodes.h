@@ -102,8 +102,10 @@
 #define	OPC_SVPRG	61
 #define	OPC_DONEM	62
 #define	OPC_SRND	63
+#define	OPC_FLR		64
+#define	OPC_CEIL	65
 
-#define	OPC___LAST	OPC_SRND
+#define	OPC___LAST	OPC_CEIL
 #define	OPC___COUNT	(OPC___LAST + 1)
 
 #define	OPC_F_LABEL	0x01

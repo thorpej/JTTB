@@ -152,7 +152,7 @@ const struct opcode opcode_tab[] = {
 	{ "STRLEN",	OPC_STRLEN,	0 },
 	{ "ASC",	OPC_ASC,	0 },
 	{ "CHR",	OPC_CHR,	0 },
-	{ "INTVAL",	OPC_INTVAL,	0 },
+	{ "FIX",	OPC_FIX,	0 },
 	{ "SGN",	OPC_SGN,	0 },
 	{ "SCAN",	OPC_SCAN,	OPC_F_LABEL | OPC_F_STRING },
 	{ "ONDONE",	OPC_ONDONE,	OPC_F_LABEL },
@@ -163,6 +163,8 @@ const struct opcode opcode_tab[] = {
 	{ "SVPRG",	OPC_SVPRG,	0 },
 	{ "DONEM",	OPC_DONEM,	OPC_F_NUMBER },
 	{ "SRND",	OPC_SRND,	0 },
+	{ "FLR",	OPC_FLR,	0 },
+	{ "CEIL",	OPC_CEIL,	0 },
 
 	{ NULL,		0,		0 },
 };
