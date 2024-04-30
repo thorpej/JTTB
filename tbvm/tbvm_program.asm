@@ -116,6 +116,9 @@
 ;
 ; ==> Added FLOOR() and CEIL() functions using new FLR and CEIL VM insns.
 ;
+; ==> Added ATN(), COS(), SIN(), and TAN() functions using new ATN,
+;     COS, SIN, and TAN VM insns.
+;
 ;
 ; Original Tiny BASIC VM opcodes that are no longer used:
 ; ==> CMPR (replaced by CMPRX)
@@ -506,10 +509,17 @@ Serr:	ERR			; Syntax error.
 ; function ::= RND ( expression )
 ;              ABS ( expression )
 ;              ASC ( expression )
+;              ATN ( expression )
+;              COS ( expression )
 ;              VAL ( expression )
 ;              LEN ( expression )
+;              FIX ( expression )
 ;              INT ( expression )
+;              FLOOR ( expression )
+;              CEIL ( expression )
 ;              SGN ( expression )
+;              SIN ( expression )
+;              TAN ( expression )
 ;              CHR$ ( expression )
 ;              STR$ ( expression )
 ;              HEX$ ( expression )
@@ -561,7 +571,7 @@ T1:	TST	T2,'/'		; Quotient?
 
 T2:	TST	T3,'^'		; Exponentiation?
 	CALL	FACT		; Get second factor.
-	EXP
+	POW
 	JMP	T0		; Check for more.
 
 T3:	TST	T4,'%'		; Modulus?
@@ -591,6 +601,18 @@ notABS:
 	ASC
 	RTN
 notASC:
+
+	TST	notATN,'ATN'	; ATN() function?
+	CALL	FUNC1ARG
+	ATN
+	RTN
+notATN:
+
+	TST	notCOS,'COS'	; COS() function?
+	CALL	FUNC1ARG
+	COS
+	RTN
+notCOS:
 
 	TST	notVAL,'VAL'	; VAL() function?
 	CALL	FUNC1ARG
@@ -629,6 +651,18 @@ notCEIL:
 	SGN
 	RTN
 notSGN:
+
+	TST	notSIN,'SIN'	; SIN() function?
+	CALL	FUNC1ARG
+	SIN
+	RTN
+notSIN:
+
+	TST	notTAN,'TAN'	; TAN() function?
+	CALL	FUNC1ARG
+	TAN
+	RTN
+notTAN:
 
 	TST	notCHR,'CHR$'	; CHR$() function?
 	CALL	FUNC1ARG

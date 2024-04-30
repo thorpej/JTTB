@@ -104,8 +104,12 @@
 #define	OPC_SRND	63
 #define	OPC_FLR		64
 #define	OPC_CEIL	65
+#define	OPC_ATN		66
+#define	OPC_COS		67
+#define	OPC_SIN		68
+#define	OPC_TAN		69
 
-#define	OPC___LAST	OPC_CEIL
+#define	OPC___LAST	OPC_TAN
 #define	OPC___COUNT	(OPC___LAST + 1)
 
 #define	OPC_F_LABEL	0x01

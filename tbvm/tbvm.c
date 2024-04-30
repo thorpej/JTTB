@@ -412,50 +412,6 @@ value_release(tbvm *vm, const struct value *value)
 
 /*********** Print formatting helper routines **********/
 
-/*
- * Just some notes on MS BASIC number formatting:
- *
- * A=1.123456789123456789
- * print A
- * -> 1.12345679
- *
- * print A/10
- * -> .112345679
- *
- * print A/100
- * -> .0112345679
- *
- * print A/1000
- * -> 1.12345679E-03
- *
- * print A*10
- * -> 11.2345679
- *
- * print A*100
- * -> 112.345679
- *
- * print A*1000
- * -> 1123.45679
- *
- * print A*10000
- * -> 11234.5679
- *
- * print A*100000
- * -> 112345.679
- *
- * print A*1000000
- * -> 1123456.79
- *
- * print A*10000000
- * -> 11234567.9
- *
- * print A*100000000
- * -> 112345679
- *
- * print A*1000000000
- * -> 1.12345679E+09
- */
-
 static void
 print_crlf(tbvm *vm)
 {
@@ -524,8 +480,53 @@ format_integer(int num, int width, char *buf)
 static char *
 format_float(double num, char *buf)
 {
-	if (fabs(num) < 1.0) {
-		sprintf(buf, "%G", num);
+	/*
+	 * Just some notes on MS BASIC number formatting:
+	 *
+	 * A=1.123456789123456789
+	 * print A
+	 * -> 1.12345679
+	 *
+	 * print A/10
+	 * -> .112345679
+	 *
+	 * print A/100
+	 * -> .0112345679
+	 *
+	 * print A/1000
+	 * -> 1.12345679E-03
+	 *
+	 * print A*10
+	 * -> 11.2345679
+	 *
+	 * print A*100
+	 * -> 112.345679
+	 *
+	 * print A*1000
+	 * -> 1123.45679
+	 *
+	 * print A*10000
+	 * -> 11234.5679
+	 *
+	 * print A*100000
+	 * -> 112345.679
+	 *
+	 * print A*1000000
+	 * -> 1123456.79
+	 *
+	 * print A*10000000
+	 * -> 11234567.9
+	 *
+	 * print A*100000000
+	 * -> 112345679
+	 *
+	 * print A*1000000000
+	 * -> 1.12345679E+09
+	 */
+	double absnum = fabs(num);
+
+	if (absnum > 0.0 && absnum < 0.01) {
+		sprintf(buf, "%.8E", num);
 	} else {
 		sprintf(buf, "%.9G", num);
 	}
@@ -2957,6 +2958,50 @@ IMPL(SGN)
 	aestk_push_float(vm, val);
 }
 
+/*
+ * Pops the number value from the AESTK, computes the arc tangent, and
+ * pushes the result.
+ */
+IMPL(ATN)
+{
+	double val = atan(aestk_pop_float(vm));
+	aestk_push_float(vm, val);
+	check_math_error(vm);
+}
+
+/*
+ * Pops the number value from the AESTK, computes the cosine, and
+ * pushes the result.
+ */
+IMPL(COS)
+{
+	double val = cos(aestk_pop_float(vm));
+	aestk_push_float(vm, val);
+	check_math_error(vm);
+}
+
+/*
+ * Pops the number value from the AESTK, computes the sine, and
+ * pushes the result.
+ */
+IMPL(SIN)
+{
+	double val = sin(aestk_pop_float(vm));
+	aestk_push_float(vm, val);
+	check_math_error(vm);
+}
+
+/*
+ * Pops the number value from the AESTK, computes the tangent, and
+ * pushes the result.
+ */
+IMPL(TAN)
+{
+	double val = tan(aestk_pop_float(vm));
+	aestk_push_float(vm, val);
+	check_math_error(vm);
+}
+
 #undef IMPL
 
 #define	OPC(x)	[OPC_ ## x] = OPC_ ## x ## _impl
@@ -3030,6 +3075,10 @@ static opc_impl_func_t opc_impls[OPC___COUNT] = {
 	OPC(SRND),
 	OPC(FLR),
 	OPC(CEIL),
+	OPC(ATN),
+	OPC(COS),
+	OPC(SIN),
+	OPC(TAN),
 };
 
 #undef OPC

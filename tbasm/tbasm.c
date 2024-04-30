@@ -165,6 +165,10 @@ const struct opcode opcode_tab[] = {
 	{ "SRND",	OPC_SRND,	0 },
 	{ "FLR",	OPC_FLR,	0 },
 	{ "CEIL",	OPC_CEIL,	0 },
+	{ "ATN",	OPC_ATN,	0 },
+	{ "COS",	OPC_COS,	0 },
+	{ "SIN",	OPC_SIN,	0 },
+	{ "TAN",	OPC_TAN,	0 },
 
 	{ NULL,		0,		0 },
 };
