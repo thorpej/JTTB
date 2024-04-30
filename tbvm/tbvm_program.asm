@@ -119,6 +119,8 @@
 ; ==> Added ATN(), COS(), SIN(), and TAN() functions using new ATN,
 ;     COS, SIN, and TAN VM insns.
 ;
+; ==> Added EXP(), LOG(), and SQR() functions using new EXP, LOG, and
+;     SQR VM insns.
 ;
 ; Original Tiny BASIC VM opcodes that are no longer used:
 ; ==> CMPR (replaced by CMPRX)
@@ -520,6 +522,9 @@ Serr:	ERR			; Syntax error.
 ;              SGN ( expression )
 ;              SIN ( expression )
 ;              TAN ( expression )
+;              EXP ( expression )
+;              LOG ( expression )
+;              SQR ( expression )
 ;              CHR$ ( expression )
 ;              STR$ ( expression )
 ;              HEX$ ( expression )
@@ -663,6 +668,24 @@ notSIN:
 	TAN
 	RTN
 notTAN:
+
+	TST	notEXP,'EXP'	; EXP() function?
+	CALL	FUNC1ARG
+	EXP
+	RTN
+notEXP:
+
+	TST	notLOG,'LOG'	; LOG() function?
+	CALL	FUNC1ARG
+	LOG
+	RTN
+notLOG:
+
+	TST	notSQR,'SQR'	; SQR() function?
+	CALL	FUNC1ARG
+	SQR
+	RTN
+notSQR:
 
 	TST	notCHR,'CHR$'	; CHR$() function?
 	CALL	FUNC1ARG

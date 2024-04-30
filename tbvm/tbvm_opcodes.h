@@ -108,8 +108,11 @@
 #define	OPC_COS		67
 #define	OPC_SIN		68
 #define	OPC_TAN		69
+#define	OPC_EXP		70
+#define	OPC_LOG		71
+#define	OPC_SQR		72
 
-#define	OPC___LAST	OPC_TAN
+#define	OPC___LAST	OPC_SQR
 #define	OPC___COUNT	(OPC___LAST + 1)
 
 #define	OPC_F_LABEL	0x01

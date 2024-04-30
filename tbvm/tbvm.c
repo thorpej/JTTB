@@ -3002,6 +3002,39 @@ IMPL(TAN)
 	check_math_error(vm);
 }
 
+/*
+ * Pops the number value from the AESTK, computes the base e exponential, and
+ * pushes the result.
+ */
+IMPL(EXP)
+{
+	double val = exp(aestk_pop_float(vm));
+	aestk_push_float(vm, val);
+	check_math_error(vm);
+}
+
+/*
+ * Pops the number value from the AESTK, computes the natural logarithm, and
+ * pushes the result.
+ */
+IMPL(LOG)
+{
+	double val = log(aestk_pop_float(vm));
+	aestk_push_float(vm, val);
+	check_math_error(vm);
+}
+
+/*
+ * Pops the number value from the AESTK, computes the square root, and
+ * pushes the result.
+ */
+IMPL(SQR)
+{
+	double val = sqrt(aestk_pop_float(vm));
+	aestk_push_float(vm, val);
+	check_math_error(vm);
+}
+
 #undef IMPL
 
 #define	OPC(x)	[OPC_ ## x] = OPC_ ## x ## _impl
@@ -3079,6 +3112,9 @@ static opc_impl_func_t opc_impls[OPC___COUNT] = {
 	OPC(COS),
 	OPC(SIN),
 	OPC(TAN),
+	OPC(EXP),
+	OPC(LOG),
+	OPC(SQR),
 };
 
 #undef OPC

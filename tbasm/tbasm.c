@@ -169,6 +169,9 @@ const struct opcode opcode_tab[] = {
 	{ "COS",	OPC_COS,	0 },
 	{ "SIN",	OPC_SIN,	0 },
 	{ "TAN",	OPC_TAN,	0 },
+	{ "EXP",	OPC_EXP,	0 },
+	{ "LOG",	OPC_LOG,	0 },
+	{ "SQR",	OPC_SQR,	0 },
 
 	{ NULL,		0,		0 },
 };
