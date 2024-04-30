@@ -524,7 +524,11 @@ format_integer(int num, int width, char *buf)
 static char *
 format_float(double num, char *buf)
 {
-	sprintf(buf, "%G", num);
+	if (fabs(num) < 1.0) {
+		sprintf(buf, "%G", num);
+	} else {
+		sprintf(buf, "%.9G", num);
+	}
 	return buf;
 }
 
