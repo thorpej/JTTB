@@ -2107,8 +2107,8 @@ IMPL(ADD)
 
 	case VALUE_TYPE_FLOAT:
 		newval = val1.fpnumber + val2.fpnumber;
-		check_math_error(vm);
 		aestk_push_float(vm, newval);
+		check_math_error(vm);
 		break;
 
 	case VALUE_TYPE_STRING:
@@ -2130,8 +2130,8 @@ IMPL(SUB)
 	double num2 = aestk_pop_float(vm);
 	double num1 = aestk_pop_float(vm);
 	double newval = num1 - num2;
-	check_math_error(vm);
 	aestk_push_float(vm, newval);
+	check_math_error(vm);
 }
 
 /*
@@ -2140,8 +2140,8 @@ IMPL(SUB)
 IMPL(NEG)
 {
 	double newval = -aestk_pop_float(vm);
-	check_math_error(vm);
 	aestk_push_float(vm, newval);
+	check_math_error(vm);
 }
 
 /*
@@ -2152,8 +2152,8 @@ IMPL(MUL)
 	double num2 = aestk_pop_float(vm);
 	double num1 = aestk_pop_float(vm);
 	double newval = num1 * num2;
-	check_math_error(vm);
 	aestk_push_float(vm, newval);
+	check_math_error(vm);
 }
 
 /*
@@ -2164,8 +2164,8 @@ IMPL(POW)
 	double num2 = aestk_pop_float(vm);
 	double num1 = aestk_pop_float(vm);
 	double newval = pow(num1, num2);
-	check_math_error(vm);
 	aestk_push_float(vm, newval);
+	check_math_error(vm);
 }
 
 /*
@@ -2176,8 +2176,8 @@ IMPL(DIV)
 	double num2 = aestk_pop_float(vm);
 	double num1 = aestk_pop_float(vm);
 	double newval = num1 / num2;
-	check_math_error(vm);
 	aestk_push_float(vm, newval);
+	check_math_error(vm);
 }
 
 /*
@@ -2629,7 +2629,6 @@ IMPL(NXTFOR)
 		basic_next_error(vm);
 	}
 	newval = var_get_float(vm, var) + subr.step;
-	check_math_error(vm);
 
 	if (subr.step < 0) {
 		if (newval < subr.end_val) {
@@ -2640,6 +2639,7 @@ IMPL(NXTFOR)
 			done = true;
 		}
 	}
+	check_math_error(vm);
 
 	if (done) {
 		next_statement(vm);
@@ -2909,8 +2909,8 @@ IMPL(FIX)
 	} else {
 		val = ceil(val);
 	}
-	check_math_error(vm);
 	aestk_push_float(vm, val);
+	check_math_error(vm);
 }
 
 /*
@@ -2919,8 +2919,8 @@ IMPL(FIX)
 IMPL(FLR)
 {
 	double val = floor(aestk_pop_float(vm));
-	check_math_error(vm);
 	aestk_push_float(vm, val);
+	check_math_error(vm);
 }
 
 /*
@@ -2929,8 +2929,8 @@ IMPL(FLR)
 IMPL(CEIL)
 {
 	double val = ceil(aestk_pop_float(vm));
-	check_math_error(vm);
 	aestk_push_float(vm, val);
+	check_math_error(vm);
 }
 
 /*
