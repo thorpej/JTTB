@@ -2159,7 +2159,7 @@ IMPL(MUL)
 /*
  * Replace top two elements of AESTK by their exponentiation.
  */
-IMPL(EXP)
+IMPL(POW)
 {
 	double num2 = aestk_pop_float(vm);
 	double num1 = aestk_pop_float(vm);
@@ -3000,7 +3000,7 @@ static opc_impl_func_t opc_impls[OPC___COUNT] = {
 	OPC(STEP),
 	OPC(NXTFOR),
 	OPC(MOD),
-	OPC(EXP),
+	OPC(POW),
 	OPC(RND),
 	OPC(ABS),
 	OPC(TSTEOL),

@@ -49,7 +49,7 @@
 ; ==> Added FOR / NEXT loops using new FOR, STEP, and NXTFOR VM insns.
 ;
 ; ==> Added exponentiation (^) and modulus (%) to expression evaluation
-;     (TERM) using new EXP and MOD VM insns.
+;     (TERM) using new POW and MOD VM insns.
 ;
 ; ==> Added an RND() function using a new RND VM insn.
 ;

@@ -78,7 +78,7 @@
 #define	OPC_STEP	37
 #define	OPC_NXTFOR	38
 #define	OPC_MOD		39
-#define	OPC_EXP		40
+#define	OPC_POW		40
 #define	OPC_RND		41
 #define	OPC_ABS		42
 #define	OPC_TSTEOL	43

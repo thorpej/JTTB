@@ -139,7 +139,7 @@ const struct opcode opcode_tab[] = {
 	{ "STEP",	OPC_STEP,	0 },
 	{ "NXTFOR",	OPC_NXTFOR,	0 },
 	{ "MOD",	OPC_MOD,	0 },
-	{ "EXP",	OPC_EXP,	0 },
+	{ "POW",	OPC_POW,	0 },
 	{ "RND",	OPC_RND,	0 },
 	{ "ABS",	OPC_ABS,	0 },
 	{ "TSTEOL",	OPC_TSTEOL,	OPC_F_LABEL },
