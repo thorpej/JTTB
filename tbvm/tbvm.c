@@ -3035,6 +3035,53 @@ IMPL(SQR)
 	check_math_error(vm);
 }
 
+/*
+ * Make a string consisting of the specified number of characters,
+ * specified either by ASCII code or taken from the first character
+ * of a string.
+ */
+IMPL(MKS)
+{
+	double val1;
+	struct value val2;
+	char ch;
+
+	aestk_pop_value(vm, VALUE_TYPE_ANY, &val2);
+	val1 = aestk_pop_float(vm);
+
+	if (! integer_p(val1) || val1 < 1.0 || val1 > 255.0) {
+		basic_illegal_quantity_error(vm);
+	}
+	int count = (int)val1;
+
+	switch (val2.type) {
+	case VALUE_TYPE_FLOAT:
+		if (! integer_p(val2.fpnumber) ||
+		    val2.fpnumber < 0.0 ||
+		    val2.fpnumber > (double)UCHAR_MAX) {
+			basic_illegal_quantity_error(vm);
+		}
+		ch = (char)(int)val2.fpnumber;
+		break;
+
+	case VALUE_TYPE_STRING:
+		if (val2.string->len < 1) {
+			basic_illegal_quantity_error(vm);
+		}
+		ch = val2.string->str[0];
+		break;
+
+	default:
+		basic_wrong_type_error(vm);
+	}
+
+	string *string = string_alloc(vm, NULL, count, 0);
+	for (int i = 0; i < count; i++) {
+		string->str[i] = ch;
+	}
+	aestk_push_string(vm, string);
+}
+
 #undef IMPL
 
 #define	OPC(x)	[OPC_ ## x] = OPC_ ## x ## _impl
@@ -3115,6 +3162,7 @@ static opc_impl_func_t opc_impls[OPC___COUNT] = {
 	OPC(EXP),
 	OPC(LOG),
 	OPC(SQR),
+	OPC(MKS),
 };
 
 #undef OPC

@@ -172,6 +172,7 @@ const struct opcode opcode_tab[] = {
 	{ "EXP",	OPC_EXP,	0 },
 	{ "LOG",	OPC_LOG,	0 },
 	{ "SQR",	OPC_SQR,	0 },
+	{ "MKS",	OPC_MKS,	0 },
 
 	{ NULL,		0,		0 },
 };

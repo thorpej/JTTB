@@ -122,6 +122,8 @@
 ; ==> Added EXP(), LOG(), and SQR() functions using new EXP, LOG, and
 ;     SQR VM insns.
 ;
+; ==> Added the STRING$() function using the new MKS VM insn.
+;
 ; Original Tiny BASIC VM opcodes that are no longer used:
 ; ==> CMPR (replaced by CMPRX)
 ; ==> LST (replaced by LSTX)
@@ -528,6 +530,7 @@ Serr:	ERR			; Syntax error.
 ;              CHR$ ( expression )
 ;              STR$ ( expression )
 ;              HEX$ ( expression )
+;              STRING$ ( expression , expression )
 ;
 ; var ::= A | B | ... | Y | Z
 ;
@@ -698,6 +701,16 @@ notCHR:
 	STR
 	RTN
 notSTR:
+
+	TST	notSTNG,'STRING$' ; STRING$() function?
+	TST	Serr,'('
+	CALL	EXPR		; First argument is numeric expression.
+	TST	Serr,','
+	CALL	EXPR		; Second argument is string or numeric expr.
+	TST	Serr,')'
+	MKS			; Make the string.
+	RTN
+notSTNG:
 
 	TST	notHEX,'HEX$'	; HEX$() function?
 	CALL	FUNC1ARG
