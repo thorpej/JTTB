@@ -91,7 +91,7 @@
 #define	OPC_STRLEN	50
 #define	OPC_ASC		51
 #define	OPC_CHR		52
-#define	OPC_INTVAL	53
+#define	OPC_FIX		53
 #define	OPC_SGN		54
 #define	OPC_SCAN	55
 #define	OPC_ONDONE	56

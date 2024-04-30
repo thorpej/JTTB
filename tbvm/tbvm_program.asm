@@ -82,7 +82,7 @@
 ;
 ; ==> Added a CHR$() function using a new CHR VM insn.
 ;
-; ==> Added an INT() function using a new INTVAL VM insn.
+; ==> Added an INT() function using a new FIX VM insn.
 ;
 ; ==> Added a SGN() function using a new SGN VM insn.
 ;
@@ -602,7 +602,7 @@ notLEN:
 
 	TST	notINT,'INT'	; INT() function?
 	CALL	FUNC1ARG
-	INTVAL
+	FIX
 	RTN
 notINT:
 
