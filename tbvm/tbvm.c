@@ -1053,6 +1053,17 @@ check_math_error(tbvm *vm)
 	}
 }
 
+static int
+float_to_int(tbvm *vm, double fval)
+{
+	int ffval = floor(fval);
+
+	if (ffval != fval) {
+		basic_illegal_quantity_error(vm);
+	}
+	return (int)ffval;
+}
+
 static void
 reset_stacks(tbvm *vm)
 {
@@ -3103,6 +3114,76 @@ IMPL(MKS)
 	aestk_push_string(vm, string);
 }
 
+/*
+ * Pop mode argument from AESTK.  Mode determines the remaining arguments:
+ *
+ * Mode 0: pop length, position, and string arguments.  Create substring
+ * starting at specified position from beginning of string for length
+ * characters.
+ *
+ * Mode 1: pop position and string arguments.  Create substring starting at
+ * specified position from the beginning of the string to the end of the
+ * string.
+ *
+ * Mode 2: pop length and string arguments.  Create a substring of the last
+ * length characters of the string.
+ */
+IMPL(SBSTR)
+{
+	int mode = aestk_pop_integer(vm);
+	int pos = -1, len = -1;
+	string *string, *newstr;
+
+	switch (mode) {
+	case 0:
+		len = float_to_int(vm, aestk_pop_float(vm));
+		pos = float_to_int(vm, aestk_pop_float(vm));
+		string = aestk_pop_string(vm);
+		if (pos < 0 || len < 0) {
+			basic_illegal_quantity_error(vm);
+		}
+		break;
+
+	case 1:
+		pos = float_to_int(vm, aestk_pop_float(vm));
+		string = aestk_pop_string(vm);
+		if (pos < 0) {
+			basic_illegal_quantity_error(vm);
+		}
+		if (pos >= string->len) {
+			len = 0;
+		} else {
+			len = string->len - pos;
+		}
+		break;
+
+	case 2:
+		len = float_to_int(vm, aestk_pop_float(vm));
+		string = aestk_pop_string(vm);
+		if (len < 0) {
+			basic_illegal_quantity_error(vm);
+		}
+		if (len > string->len) {
+			pos = 0;
+		} else {
+			pos = string->len - len;
+		}
+		break;
+
+	default:
+		vm_abort(vm, "!ILLEGAL SBSTR MODE");
+	}
+
+	if (len == 0) {
+		aestk_push_string(vm, &empty_string);
+		return;
+	}
+
+	newstr = string_alloc(vm, NULL, len, 0);
+	memcpy(newstr->str, &string->str[pos], len);
+	aestk_push_string(vm, newstr);
+}
+
 #undef IMPL
 
 #define	OPC(x)	[OPC_ ## x] = OPC_ ## x ## _impl
@@ -3184,6 +3265,7 @@ static opc_impl_func_t opc_impls[OPC___COUNT] = {
 	OPC(LOG),
 	OPC(SQR),
 	OPC(MKS),
+	OPC(SBSTR),
 };
 
 #undef OPC

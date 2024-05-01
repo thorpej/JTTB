@@ -124,6 +124,8 @@
 ;
 ; ==> Added the STRING$() function using the new MKS VM insn.
 ;
+; ==> Added MID$() and RIGHT$() functions using the new SBSTR VM insn.
+;
 ; Original Tiny BASIC VM opcodes that are no longer used:
 ; ==> CMPR (replaced by CMPRX)
 ; ==> LST (replaced by LSTX)
@@ -531,6 +533,11 @@ Serr:	ERR			; Syntax error.
 ;              STR$ ( expression )
 ;              HEX$ ( expression )
 ;              STRING$ ( expression , expression )
+;              MID$ ( expression , expression mid-opt-len )
+;              RIGHT$ ( expression , expression )
+;
+; mid-opt-len ::=
+;                 , expression
 ;
 ; var ::= A | B | ... | Y | Z
 ;
@@ -717,6 +724,30 @@ notSTNG:
 	HEX
 	RTN
 notHEX:
+
+	TST	notMID,'MID$'	; MID$() function?
+	TST	Serr,'('
+	CALL	EXPR		; First argument is string expression.
+	TST	Serr,','
+	CALL	EXPR		; Second argument is numeric expression.
+	TST	MID1,','	; Third argument?
+	CALL	EXPR		; Yes, and it's a numeric expression.
+	LIT	0		; 3 args == SBSTR mode 0.
+	JMP	MID2		; Go do it.
+MID1:	LIT	1		; 2 args == SBSTR mode 1.
+MID2:	TST	Serr,')'
+	SBSTR
+	RTN
+notMID:
+
+	TST	notRIGHT,'RIGHT$' ; RIGHT$() function ?
+	TST	Serr,'('
+	CALL	EXPR		; First argument is string expression.
+	TST	Serr,','
+	CALL	EXPR		; Second argument is numeric expression.
+	LIT	2		; SBSTR mode 2.
+	JMP	MID2
+notRIGHT:
 
 	TSTV	F0		; Variable?
 	IND			; Yes, get the value.

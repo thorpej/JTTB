@@ -112,8 +112,9 @@
 #define	OPC_LOG		71
 #define	OPC_SQR		72
 #define	OPC_MKS		73
+#define	OPC_SBSTR	74
 
-#define	OPC___LAST	OPC_MKS
+#define	OPC___LAST	OPC_SBSTR
 #define	OPC___COUNT	(OPC___LAST + 1)
 
 #define	OPC_F_LABEL	0x01
