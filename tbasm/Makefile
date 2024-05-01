@@ -1,6 +1,6 @@
 OBJS=		tbasm.o
 CLEANFILES=	$(OBJS) tbasm
-CFLAGS=		-O0 -g -Wall -Wformat
+CFLAGS=		-Os -g -Wall -Wformat
 
 all: tbasm
 

@@ -1,6 +1,6 @@
 OBJS=		jttb.o
 CLEANFILES=	$(OBJS) jttb
-CFLAGS=		-O0 -g -Wall -Wformat
+CFLAGS=		-Os -g -Wall -Wformat
 
 all: jttb
 

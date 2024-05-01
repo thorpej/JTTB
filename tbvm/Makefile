@@ -1,6 +1,6 @@
 OBJS=		tbvm.o
 CLEANFILES=	$(OBJS) tbvm_program.h libtbvm.a
-CFLAGS=		-O0 -g -Wall -Wformat
+CFLAGS=		-Os -g -Wall -Wformat
 
 all: libtbvm.a
 
