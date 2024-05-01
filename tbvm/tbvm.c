@@ -68,6 +68,9 @@
 
 #define	DQUOTE		'"'
 #define	END_OF_LINE	'\n'
+#define	TAB		'\t'
+
+#define	CONS_TABSTOP	10
 
 struct subr {
 	int var;
@@ -134,6 +137,8 @@ struct tbvm {
 	void		*cons_file;
 	void		*prog_file;
 
+	unsigned int	cons_column;
+
 	const struct tbvm_time_io *time_io;
 
 	unsigned int	rand_seed;
@@ -170,9 +175,26 @@ vm_cons_getchar(tbvm *vm)
 }
 
 static inline void
+vm_cons_putchar0(tbvm *vm, int ch)
+{
+	if (ch == END_OF_LINE) {
+		vm->cons_column = 0;
+	} else {
+		vm->cons_column++;
+	}
+	(*vm->file_io->io_putchar)(vm->context, vm->cons_file, ch);
+}
+
+static void
 vm_cons_putchar(tbvm *vm, int ch)
 {
-	(*vm->file_io->io_putchar)(vm->context, vm->cons_file, ch);
+	if (ch == TAB) {
+		do {
+			vm_cons_putchar0(vm, ' ');
+		} while ((vm->cons_column % CONS_TABSTOP) != 0);
+	} else {
+		vm_cons_putchar0(vm, ch);
+	}
 }
 
 static void *
@@ -1687,8 +1709,7 @@ IMPL(PRN)
  */
 IMPL(SPC)
 {
-	/* XXX "Next zone"?  Just one space, for now. */
-	vm_cons_putchar(vm, ' ');
+	vm_cons_putchar(vm, TAB);
 }
 
 /*
