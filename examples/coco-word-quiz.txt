@@ -1,0 +1,22 @@
+  1 REM THIS IS ADAPTED FROM AN EXERCISE IN CHAPTER 8 OF
+  2 REM "GETTING STARTED WITH EXTENDED COLOR BASIC".
+ 10 DATA "taciturn", "habitually untalkative"
+ 20 DATA "loquacious", "very talkative"
+ 30 DATA "vociferous", "loud and vehement"
+ 40 DATA "terse", "concise"
+ 50 DATA "effusive", "demonstrative or gushy"
+ 60 N = RND(10)
+ 65 IF INT(N/2) = N/2 THEN N = N - 1
+ 70 FOR X = 1 TO N
+ 80 READ A$
+ 90 NEXT X
+110 READ B$
+120 PRINT "What word means -> "; B$
+130 RESTORE
+140 INPUT R$
+150 IF R$ = A$ THEN 190
+160 PRINT "WRONG"
+170 PRINT "The correct word is -> "; A$
+180 GOTO 60
+190 PRINT "CORRECT"
+200 GOTO 60

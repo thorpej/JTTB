@@ -174,6 +174,10 @@ const struct opcode opcode_tab[] = {
 	{ "SQR",	OPC_SQR,	0 },
 	{ "MKS",	OPC_MKS,	0 },
 	{ "SBSTR",	OPC_SBSTR,	0 },
+	{ "TSTSOL",	OPC_TSTSOL,	OPC_F_LABEL },
+	{ "NXTLN",	OPC_NXTLN,	OPC_F_LABEL },
+	{ "DMODE",	OPC_DMODE,	OPC_F_NUMBER },
+	{ "DSTORE",	OPC_DSTORE,	0 },
 
 	{ NULL,		0,		0 },
 };

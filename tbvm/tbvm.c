@@ -67,6 +67,7 @@
 #define	MAX_LINENO	65535	/* arbitrary */
 
 #define	DQUOTE		'"'
+#define	COMMA		','
 #define	END_OF_LINE	'\n'
 #define	TAB		'\t'
 
@@ -124,6 +125,7 @@ struct tbvm {
 	bool		suppress_prompt;
 	bool		direct;		/* true if in DIRECT mode */
 	int		lineno;		/* current BASIC line number */
+	int		data_lineno;	/* current BASIC DATA line number */
 	int		first_line;
 	int		last_line;
 	char		*progstore[MAX_LINENO];
@@ -151,6 +153,10 @@ struct tbvm {
 	char		*lbuf;
 	int		lbuf_ptr;
 
+	int		saved_lineno;		/* != 0 when in DATA mode */
+	int		saved_lbuf_ptr;
+	int		data_lbuf_ptr;
+
 	int		ondone;
 	int		cstk[SIZE_CSTK];
 	int		cstk_ptr;
@@ -165,6 +171,7 @@ struct tbvm {
 /*********** Forward declarations **********/
 
 static void	prog_file_fini(tbvm *);
+static void	exit_data_mode(tbvm *);
 
 /*********** Driver interface routines **********/
 
@@ -600,6 +607,9 @@ basic_error(tbvm *vm, const char *msg)
 		print_integer(vm, vm->lineno);
 	}
 	print_crlf(vm);
+	if (vm->saved_lineno != 0) {
+		exit_data_mode(vm);
+	}
 	longjmp(vm->basic_error_env, 1);
 }
 
@@ -699,6 +709,12 @@ static void DOES_NOT_RETURN
 basic_illegal_quantity_error(tbvm *vm)
 {
 	basic_error(vm, "?ILLEGAL QUANTITY");
+}
+
+static void DOES_NOT_RETURN
+basic_out_of_data_error(tbvm *vm)
+{
+	basic_error(vm, "?OUT OF DATA");
 }
 
 /*********** Generic stack routines **********/
@@ -1741,6 +1757,25 @@ IMPL(NXT)
 }
 
 /*
+ * If there is a next line, then select it and leave the VM PC unchanged.
+ * Otherwise, branch to the specified VM label.
+ */
+IMPL(NXTLN)
+{
+	int label = get_label(vm);
+	int line = next_line(vm);
+
+	if (vm->direct) {
+		vm_abort(vm, "!TSTNXT IN DIRECT MODE");
+	}
+	if (line == -1) {
+		vm->pc = label;
+	} else {
+		set_line_ext(vm, line, 0, true, true);
+	}
+}
+
+/*
  * Test value at the top of the AE stack to be within range. If not,
  * report an error. If so, attempt to position cursor at that line.
  * If it exists, begin interpretation there; if not report an error.
@@ -2245,6 +2280,112 @@ IMPL(STORE)
 }
 
 /*
+ * Store the DATA item at the program cursor into the varable
+ * referenced on the stack.  The type if the DATA item is inferred
+ * from the variable type.
+ */
+IMPL(DSTORE)
+{
+	int var = aestk_pop_varref(vm);
+	char *cp0, *cp1;
+	unsigned dquotes = 0;
+
+	skip_whitespace(vm);
+
+	cp0 = cp1 = &vm->lbuf[vm->lbuf_ptr];
+
+	/* find the separator or the end-of-line. */
+	for (;; cp1++) {
+		if (*cp1 == DQUOTE) {
+			if (dquotes < 2) {
+				if (dquotes == 0) {
+					/*
+					 * Reject quotes that don't start at
+					 * the beginning of the DATA item.
+					 */
+					if (cp1 != cp0) {
+						basic_syntax_error(vm);
+					}
+					/* Advance over starting quote. */
+					cp0++;
+				}
+				dquotes++;
+				continue;
+			}
+			basic_syntax_error(vm);
+		}
+		if (*cp1 == COMMA) {
+			if (dquotes == 1) {
+				/* inside quoted string, not a separator */
+				continue;
+			}
+			break;
+		}
+		if (*cp1 == END_OF_LINE) {
+			if (dquotes == 1) {
+				/* EOL inside quote is an error. */
+				basic_syntax_error(vm);
+			}
+			break;
+		}
+	}
+
+	/* total length is how much we advance the cursor. */
+	advance_cursor(vm, cp1 - &vm->lbuf[vm->lbuf_ptr]);
+
+	/* trim trailing whitespace */
+	while (cp1 != cp0) {
+		cp1--;
+		if (! whitespace_p(*cp1)) {
+			break;
+		}
+	}
+
+	/*
+	 * If we're not pointing at a dquote now, move forward one so that
+	 * we get the last non-whitespace character.
+	 */
+	if (*cp1 != DQUOTE) {
+		cp1++;
+	}
+
+	/* Now we know the length of the string we care about. */
+	string *string = string_alloc(vm, cp0, cp1 - cp0, vm->lineno);
+
+	/* If we're storing into a numeric var, convert to a number. */
+	if (var < SVAR_BASE) {
+		/* XXX Code dupliacated with VAL(). */
+		string = string_terminate(vm, string);
+		double val;
+		char *cp;
+
+		/*
+		 * If it's a quoted string, then flag as the
+		 * wrong type.
+		 */
+		if (dquotes) {
+			basic_wrong_type_error(vm);
+		}
+
+		errno = 0;
+		val = strtod(string->str, &cp);
+		if (errno == ERANGE) {
+			basic_illegal_quantity_error(vm);
+		}
+		if (*cp != '\0') {
+			basic_wrong_type_error(vm);
+		}
+		var_set_float(vm, var, val);
+	} else {
+		struct value value = {
+			.type = VALUE_TYPE_STRING,
+			.string = string,
+		};
+		var_set_value(vm, var, &value);
+	}
+}
+
+/*
  * Test for variable (i.e letter) if present. Place its index value
  * onto the AESTK and continue execution at next suggested location.
  * Otherwise continue at lbl.
@@ -2589,6 +2730,7 @@ IMPL(RUN)
 {
 	vm->direct = false;
 	vm->lineno = 0;
+	vm->data_lineno = 0;
 	next_statement(vm);
 }
 
@@ -2773,6 +2915,19 @@ IMPL(TSTEOL)
 
 	skip_whitespace(vm);
 	if (peek_linebyte(vm, 0) != END_OF_LINE) {
+		vm->pc = label;
+	}
+}
+
+/*
+ * Test if the cursor is at the start-of-line.  If not, branch to
+ * the label.
+ */
+IMPL(TSTSOL)
+{
+	int label = get_label(vm);
+
+	if (vm->lbuf_ptr != 0) {
 		vm->pc = label;
 	}
 }
@@ -3184,6 +3339,68 @@ IMPL(SBSTR)
 	aestk_push_string(vm, newstr);
 }
 
+static void
+exit_data_mode(tbvm *vm)
+{
+	int lineno = vm->saved_lineno;
+
+	vm->data_lineno = vm->lineno;
+	vm->data_lbuf_ptr = vm->lbuf_ptr;
+
+	vm->saved_lineno = 0;
+
+	set_line_ext(vm, lineno, vm->saved_lbuf_ptr, true, true);
+}
+
+/*
+ * Enter or exit DATA scanning mode.
+ */
+IMPL(DMODE)
+{
+	int mode = get_literal(vm);
+
+	switch (mode) {
+	case 0:		/* normal exit from DATA mode */
+	case 2:		/* out-of-data exit from DATA mode */
+		if (vm->saved_lineno == 0) {
+			vm_abort(vm, "!INVALID EXIT FROM DATA MODE");
+		}
+		exit_data_mode(vm);
+		if (mode == 2) {
+			basic_out_of_data_error(vm);
+		}
+		break;
+
+	case 1:		/* entry into DATA mode */
+		if (vm->saved_lineno != 0) {
+			vm_abort(vm, "!NESTED ENTRY INTO DATA MODE");
+		}
+
+		if (vm->data_lineno == 0) {
+			vm->data_lineno = vm->first_line;
+			vm->data_lbuf_ptr = 0;
+		}
+
+		vm->saved_lineno = vm->lineno;
+		vm->saved_lbuf_ptr = vm->lbuf_ptr;
+
+		set_line_ext(vm, vm->data_lineno, vm->data_lbuf_ptr,
+		    true, true);
+		break;
+
+	case 3:		/* reset data pointer to beginning */
+		if (vm->saved_lineno != 0) {
+			vm_abort(vm, "!DATA RESET WHILE IN DATA MODE");
+		}
+		vm->data_lineno = vm->first_line;
+		vm->data_lbuf_ptr = 0;
+		break;
+
+	default:
+		vm_abort(vm, "!INVALID DMODE");
+	}
+}
+
 #undef IMPL
 
 #define	OPC(x)	[OPC_ ## x] = OPC_ ## x ## _impl
@@ -3266,6 +3483,10 @@ static opc_impl_func_t opc_impls[OPC___COUNT] = {
 	OPC(SQR),
 	OPC(MKS),
 	OPC(SBSTR),
+	OPC(TSTSOL),
+	OPC(NXTLN),
+	OPC(DMODE),
+	OPC(DSTORE),
 };
 
 #undef OPC

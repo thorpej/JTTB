@@ -126,6 +126,9 @@
 ;
 ; ==> Added MID$() and RIGHT$() functions using the new SBSTR VM insn.
 ;
+; ==> Added DATA, READ, and RESTORE statements using new TSTSOL, NXTLN,
+;     DMODE, and DSTORE VM insns.
+;
 ; Original Tiny BASIC VM opcodes that are no longer used:
 ; ==> CMPR (replaced by CMPRX)
 ; ==> LST (replaced by LSTX)
@@ -364,11 +367,45 @@ notRTN:
 	;
 	; REM <rest of line ignored>
 	;
-	TST	notREM,'REM'	; REM statement?
-	ADVEOL			; Skip to the end of line.
+	; DATA statements are treated the same way in the statement
+	; executor.
+	;
+	TST	REM1,'REM'	; REM statement?
+	JMP	REM2
+REM1:	TST	notREM,'DATA'	; DATA statements ignored in executor.
+REM2:	ADVEOL			; Skip to the end of line.
 	DONE			; End of statement.
 	NXT			; Next statement.
 notREM:
+
+	;
+	; READ var
+	;
+	TST	notREAD,'READ'	; READ statement?
+	TSTV	Serr
+	DONEM	0		; End of statement (RUN-mode).
+	DMODE	1		; Goto into DATA mode.
+RD1:	TSTSOL	RD3		; At start-of-line?
+RD2:	TST	RDnxt,'DATA'	; Yes, DATA statement?
+RDstor:	DSTORE			; Yes, store data in var.
+	DMODE	0		; Exit data mode.
+	NXT			; Next statement.
+RD3:	TST	RD4,','		; Separator?
+	JMP	RDstor		; Yes, go store data.
+RD4:	TSTEOL	Serr		; If not end-of-line, syntax error.
+RDnxt:	NXTLN	RDDerr		; Advance to next line, if available.
+	JMP	RD2		; Try again.
+RDDerr:	DMODE	2		; Out of data error.
+notREAD:
+
+	;
+	; RESTORE
+	;
+	TST	notRSTR,'RESTORE' ; RESTORE statement?
+	DONEM	0		; End of statement (RUN-mode).
+	DMODE	3		; Restore data pointer.
+	NXT			; Next statement.
+notRSTR:
 
 	;
 	; END
