@@ -379,23 +379,27 @@ REM2:	ADVEOL			; Skip to the end of line.
 notREM:
 
 	;
-	; READ var
+	; READ var-list
+	;
+	; var-list::= var (, var)*
 	;
 	TST	notREAD,'READ'	; READ statement?
-	TSTV	Serr
-	DONEM	0		; End of statement (RUN-mode).
+RD1:	TSTV	Serr
 	DMODE	1		; Goto into DATA mode.
-RD1:	TSTSOL	RD3		; At start-of-line?
+	TSTSOL	RD3		; At start-of-line?
 RD2:	TST	RDnxt,'DATA'	; Yes, DATA statement?
 RDstor:	DSTORE			; Yes, store data in var.
 	DMODE	0		; Exit data mode.
-	NXT			; Next statement.
+	TST	RDDone,','	; More vars?
+	JMP	RD1		; Yes, to get them.
 RD3:	TST	RD4,','		; Separator?
 	JMP	RDstor		; Yes, go store data.
 RD4:	TSTEOL	Serr		; If not end-of-line, syntax error.
 RDnxt:	NXTLN	RDDerr		; Advance to next line, if available.
 	JMP	RD2		; Try again.
 RDDerr:	DMODE	2		; Out of data error.
+RDDone:	DONEM	0		; End of statement (RUN-mode).
+	NXT			; Next statement.
 notREAD:
 
 	;

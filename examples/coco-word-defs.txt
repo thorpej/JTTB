@@ -1,0 +1,13 @@
+  1 REM THIS IS ADAPTED FROM AN EXERCISE IN CHAPTER 8 OF
+  2 REM "GETTING STARTED WITH EXTENDED COLOR BASIC".
+  3 REM IT HAS BEEN MODIFIED TO SIMPLY LIST THE DEFINITIONS
+  4 REM (AND READ TWO VARIABLES AT A TIME).
+ 10 DATA "taciturn", "habitually untalkative"
+ 20 DATA "loquacious", "very talkative"
+ 30 DATA "vociferous", "loud and vehement"
+ 40 DATA "terse", "concise"
+ 50 DATA "effusive", "demonstrative or gushy"
+100 FOR X = 1 TO 5
+110 READ A$, B$
+120 PRINT A$;" means ";B$;"."
+130 NEXT X
