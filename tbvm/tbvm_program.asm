@@ -124,7 +124,8 @@
 ;
 ; ==> Added the STRING$() function using the new MKS VM insn.
 ;
-; ==> Added MID$() and RIGHT$() functions using the new SBSTR VM insn.
+; ==> Added LEFT$(), MID$(), and RIGHT$() functions using the new
+;     SBSTR VM insn.
 ;
 ; ==> Added DATA, READ, and RESTORE statements using new TSTSOL, NXTLN,
 ;     DMODE, and DSTORE VM insns.
@@ -576,6 +577,7 @@ Serr:	ERR			; Syntax error.
 ;              STRING$ ( expression , expression )
 ;              MID$ ( expression , expression mid-opt-len )
 ;              RIGHT$ ( expression , expression )
+;              LEFT$ ( expression , expression )
 ;
 ; mid-opt-len ::=
 ;                 , expression
@@ -781,7 +783,7 @@ MID2:	TST	Serr,')'
 	RTN
 notMID:
 
-	TST	notRIGHT,'RIGHT$' ; RIGHT$() function ?
+	TST	notRIGHT,'RIGHT$' ; RIGHT$() function?
 	TST	Serr,'('
 	CALL	EXPR		; First argument is string expression.
 	TST	Serr,','
@@ -789,6 +791,17 @@ notMID:
 	LIT	2		; SBSTR mode 2.
 	JMP	MID2
 notRIGHT:
+
+	TST	notLEFT,'LEFT$'	; LEFT$() function?
+	TST	Serr,'('
+	CALL	EXPR		; First argument is string expression.
+	LIT	0		; Position argument is 0 for SUBSTR 0.
+	TST	Serr,','
+	CALL	EXPR		; Second argument is numeric expression.
+	LIT	0		; SUBSTR mode 0.
+	JMP	MID2
+notLEFT:
+
 
 	TSTV	F0		; Variable?
 	IND			; Yes, get the value.

@@ -3288,11 +3288,24 @@ IMPL(SBSTR)
 	int mode = aestk_pop_integer(vm);
 	int pos = -1, len = -1;
 	string *string, *newstr;
+	struct value value;
 
 	switch (mode) {
 	case 0:
 		len = float_to_int(vm, aestk_pop_float(vm));
-		pos = float_to_int(vm, aestk_pop_float(vm));
+		aestk_pop_value(vm, VALUE_TYPE_ANY, &value);
+		switch (value.type) {
+		case VALUE_TYPE_INTEGER:
+			pos = value.integer;
+			break;
+
+		case VALUE_TYPE_FLOAT:
+			pos = float_to_int(vm, value.fpnumber);
+			break;
+
+		default:
+			basic_wrong_type_error(vm);
+		}
 		string = aestk_pop_string(vm);
 		if (pos < 0 || len < 0) {
 			basic_illegal_quantity_error(vm);
