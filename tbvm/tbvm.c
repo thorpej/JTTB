@@ -108,7 +108,7 @@ struct value {
 };
 #define	VALUE_TYPE_ANY		0
 #define	VALUE_TYPE_INTEGER	1
-#define	VALUE_TYPE_FLOAT	2
+#define	VALUE_TYPE_NUMBER	2
 #define	VALUE_TYPE_STRING	3
 #define	VALUE_TYPE_VARREF	10
 
@@ -467,7 +467,7 @@ format_integer(int num, int width, char *buf)
 }
 
 static char *
-format_float(tbvm_number num, char *buf)
+format_number(tbvm_number num, char *buf)
 {
 	/*
 	 * Just some notes on MS BASIC number formatting:
@@ -529,9 +529,9 @@ print_integer(tbvm *vm, int num)
 }
 
 static void
-print_float(tbvm *vm, tbvm_number num)
+print_number(tbvm *vm, tbvm_number num)
 {
-	print_cstring(vm, format_float(num, vm->tmp_buf));
+	print_cstring(vm, format_number(num, vm->tmp_buf));
 }
 
 /*********** BASIC / VM error helper routines **********/
@@ -676,7 +676,7 @@ basic_out_of_data_error(tbvm *vm)
 /*********** Value routines **********/
 
 static int
-float_to_int(tbvm *vm, tbvm_number fval)
+number_to_int(tbvm *vm, tbvm_number fval)
 {
 	int ffval = floor(fval);
 
@@ -687,7 +687,7 @@ float_to_int(tbvm *vm, tbvm_number fval)
 }
 
 static inline tbvm_number
-int_to_float(tbvm *vm, int val)
+int_to_number(tbvm *vm, int val)
 {
 	return (tbvm_number)val;
 }
@@ -707,7 +707,7 @@ value_valid_p(const struct value *value)
 	case VALUE_TYPE_INTEGER:
 		break;
 
-	case VALUE_TYPE_FLOAT:
+	case VALUE_TYPE_NUMBER:
 		break;
 
 	case VALUE_TYPE_STRING:
@@ -742,15 +742,15 @@ value_release(tbvm *vm, const struct value *value)
 }
 
 static void
-value_coerce_float(tbvm *vm, struct value *val)
+value_coerce_number(tbvm *vm, struct value *val)
 {
 	switch (val->type) {
 	case VALUE_TYPE_INTEGER:
-		val->number = int_to_float(vm, val->integer);
-		val->type = VALUE_TYPE_FLOAT;
+		val->number = int_to_number(vm, val->integer);
+		val->type = VALUE_TYPE_NUMBER;
 		break;
 
-	case VALUE_TYPE_FLOAT:
+	case VALUE_TYPE_NUMBER:
 		break;
 
 	default:
@@ -765,11 +765,11 @@ value_coerce_integer(tbvm *vm, struct value *val)
 	case VALUE_TYPE_INTEGER:
 		break;
 
-	case VALUE_TYPE_FLOAT:
+	case VALUE_TYPE_NUMBER:
 		if (! integer_p(val->number)) {
 			basic_illegal_quantity_error(vm);
 		}
-		val->integer = float_to_int(vm, val->number);
+		val->integer = number_to_int(vm, val->number);
 		val->type = VALUE_TYPE_INTEGER;
 		break;
 
@@ -956,22 +956,22 @@ aestk_pop_integer(tbvm *vm)
 }
 
 static void
-aestk_push_float(tbvm *vm, tbvm_number val)
+aestk_push_number(tbvm *vm, tbvm_number val)
 {
 	struct value value = {
-		.type = VALUE_TYPE_FLOAT,
+		.type = VALUE_TYPE_NUMBER,
 		.number = val,
 	};
 	aestk_push_value(vm, &value);
 }
 
 static tbvm_number
-aestk_pop_float(tbvm *vm)
+aestk_pop_number(tbvm *vm)
 {
 	struct value value;
 
 	aestk_pop_value(vm, VALUE_TYPE_ANY, &value);
-	value_coerce_float(vm, &value);
+	value_coerce_number(vm, &value);
 	return value.number;
 }
 
@@ -1035,26 +1035,26 @@ var_slot(tbvm *vm, int idx)
 }
 
 static tbvm_number
-var_get_float(tbvm *vm, int idx)
+var_get_number(tbvm *vm, int idx)
 {
 	struct value *slot = var_slot(vm, idx);
 	if (idx >= SVAR_BASE) {
 		vm_abort(vm, "!BAD VAR INDEX");
 	}
-	if (slot->type != VALUE_TYPE_FLOAT) {
+	if (slot->type != VALUE_TYPE_NUMBER) {
 		return 0;
 	}
 	return slot->number;
 }
 
 static int
-var_set_float(tbvm *vm, int idx, tbvm_number val)
+var_set_number(tbvm *vm, int idx, tbvm_number val)
 {
 	struct value *slot = var_slot(vm, idx);
 	if (idx >= SVAR_BASE) {
 		vm_abort(vm, "!BAD VAR INDEX");
 	}
-	slot->type = VALUE_TYPE_FLOAT;
+	slot->type = VALUE_TYPE_NUMBER;
 	return (slot->number = val);
 }
 
@@ -1079,7 +1079,7 @@ var_set_value(tbvm *vm, int idx, const struct value *valp)
 		if (valp->type != VALUE_TYPE_STRING) {
 			basic_wrong_type_error(vm);
 		}
-	} else if (valp->type != VALUE_TYPE_FLOAT) {
+	} else if (valp->type != VALUE_TYPE_NUMBER) {
 		basic_wrong_type_error(vm);
 	}
 	value_release(vm, slot);
@@ -1786,8 +1786,8 @@ IMPL(PRN)
 		print_integer(vm, value.integer);
 		break;
 
-	case VALUE_TYPE_FLOAT:
-		print_float(vm, value.number);
+	case VALUE_TYPE_NUMBER:
+		print_number(vm, value.number);
 		break;
 
 	case VALUE_TYPE_STRING:
@@ -1850,7 +1850,7 @@ IMPL(NXTLN)
  */
 IMPL(XFER)
 {
-	tbvm_number val = aestk_pop_float(vm);
+	tbvm_number val = aestk_pop_number(vm);
 
 	/* Don't let this put us in direct mode. */
 	if (val == 0.0) {
@@ -1900,17 +1900,17 @@ compare(tbvm *vm)
 	aestk_pop_value(vm, VALUE_TYPE_ANY, &val1);
 
 	if (val1.type != VALUE_TYPE_STRING) {
-		value_coerce_float(vm, &val1);
+		value_coerce_number(vm, &val1);
 	}
 	if (val2.type != VALUE_TYPE_STRING) {
-		value_coerce_float(vm, &val2);
+		value_coerce_number(vm, &val2);
 	}
 
 	/*
 	 * Only numbers and string, and they must both being
 	 * the same.
 	 */
-	if ((val1.type != VALUE_TYPE_FLOAT &&
+	if ((val1.type != VALUE_TYPE_NUMBER &&
 	     val1.type != VALUE_TYPE_STRING) ||
 	    val1.type != val2.type) {
 		basic_wrong_type_error(vm);
@@ -2150,7 +2150,7 @@ IMPL(INNUM)
 		input_needs_redo(vm);
 		goto get_input;
 	}
-	aestk_push_float(vm, val);
+	aestk_push_number(vm, val);
 }
 
 /*
@@ -2205,7 +2205,7 @@ IMPL(INVAR)
 			input_needs_redo(vm);
 			goto get_input;
 		}
-		value.type = VALUE_TYPE_FLOAT;
+		value.type = VALUE_TYPE_NUMBER;
 	}
 	var_set_value(vm, var, &value);
 	aestk_push_integer(vm, pcount);
@@ -2247,16 +2247,16 @@ IMPL(ADD)
 	 */
 	if (val1.type != val2.type) {
 		/*
-		 * If either is a float, both must be a float.
+		 * If either is a number, both must be a number.
 		 */
-		if (val1.type == VALUE_TYPE_FLOAT ||
-		    val2.type == VALUE_TYPE_FLOAT) {
+		if (val1.type == VALUE_TYPE_NUMBER ||
+		    val2.type == VALUE_TYPE_NUMBER) {
 			/*
-			 * value_coerce_float() will WRONG TYPE
+			 * value_coerce_number() will WRONG TYPE
 			 * if the value is a string.
 			 */
-			value_coerce_float(vm, &val1);
-			value_coerce_float(vm, &val2);
+			value_coerce_number(vm, &val1);
+			value_coerce_number(vm, &val2);
 		} else
 		/*
 		 * If either is a string, both must be a string.
@@ -2273,8 +2273,8 @@ IMPL(ADD)
 		aestk_push_integer(vm, val1.integer + val2.integer);
 		break;
 
-	case VALUE_TYPE_FLOAT:
-		aestk_push_float(vm, val1.number + val2.number);
+	case VALUE_TYPE_NUMBER:
+		aestk_push_number(vm, val1.number + val2.number);
 		check_math_error(vm);
 		break;
 
@@ -2294,9 +2294,9 @@ IMPL(ADD)
  */
 IMPL(SUB)
 {
-	tbvm_number num2 = aestk_pop_float(vm);
-	tbvm_number num1 = aestk_pop_float(vm);
-	aestk_push_float(vm, num1 - num2);
+	tbvm_number num2 = aestk_pop_number(vm);
+	tbvm_number num1 = aestk_pop_number(vm);
+	aestk_push_number(vm, num1 - num2);
 	check_math_error(vm);
 }
 
@@ -2305,7 +2305,7 @@ IMPL(SUB)
  */
 IMPL(NEG)
 {
-	aestk_push_float(vm, -aestk_pop_float(vm));
+	aestk_push_number(vm, -aestk_pop_number(vm));
 	check_math_error(vm);
 }
 
@@ -2314,9 +2314,9 @@ IMPL(NEG)
  */
 IMPL(MUL)
 {
-	tbvm_number num2 = aestk_pop_float(vm);
-	tbvm_number num1 = aestk_pop_float(vm);
-	aestk_push_float(vm, num1 * num2);
+	tbvm_number num2 = aestk_pop_number(vm);
+	tbvm_number num1 = aestk_pop_number(vm);
+	aestk_push_number(vm, num1 * num2);
 	check_math_error(vm);
 }
 
@@ -2325,9 +2325,9 @@ IMPL(MUL)
  */
 IMPL(POW)
 {
-	tbvm_number num2 = aestk_pop_float(vm);
-	tbvm_number num1 = aestk_pop_float(vm);
-	aestk_push_float(vm, pow(num1, num2));
+	tbvm_number num2 = aestk_pop_number(vm);
+	tbvm_number num1 = aestk_pop_number(vm);
+	aestk_push_number(vm, pow(num1, num2));
 	check_math_error(vm);
 }
 
@@ -2336,9 +2336,9 @@ IMPL(POW)
  */
 IMPL(DIV)
 {
-	tbvm_number num2 = aestk_pop_float(vm);
-	tbvm_number num1 = aestk_pop_float(vm);
-	aestk_push_float(vm, num1 / num2);
+	tbvm_number num2 = aestk_pop_number(vm);
+	tbvm_number num1 = aestk_pop_number(vm);
+	aestk_push_number(vm, num1 / num2);
 	check_math_error(vm);
 }
 
@@ -2347,9 +2347,9 @@ IMPL(DIV)
  */
 IMPL(MOD)
 {
-	tbvm_number num2 = aestk_pop_float(vm);
-	tbvm_number num1 = aestk_pop_float(vm);
-	aestk_push_float(vm, fmod(num1, num2));
+	tbvm_number num2 = aestk_pop_number(vm);
+	tbvm_number num1 = aestk_pop_number(vm);
+	aestk_push_number(vm, fmod(num1, num2));
 }
 
 /*
@@ -2464,7 +2464,7 @@ IMPL(DSTORE)
 		if (*cp != '\0') {
 			basic_wrong_type_error(vm);
 		}
-		var_set_float(vm, var, val);
+		var_set_number(vm, var, val);
 	} else {
 		struct value value = {
 			.type = VALUE_TYPE_STRING,
@@ -2519,7 +2519,7 @@ parse_number_common(tbvm *vm)
 }
 
 static bool
-parse_float(tbvm *vm, bool advance, tbvm_number *valp)
+parse_number(tbvm *vm, bool advance, tbvm_number *valp)
 {
 	tbvm_number val;
 	char *cp;
@@ -2577,8 +2577,8 @@ IMPL(TSTN)
 	int label = get_label(vm);
 	tbvm_number val;
 
-	if (parse_float(vm, true, &val)) {
-		aestk_push_float(vm, val);
+	if (parse_number(vm, true, &val)) {
+		aestk_push_number(vm, val);
 	} else {
 		vm->pc = label;
 	}
@@ -2599,7 +2599,7 @@ IMPL(IND)
 		if (var >= SVAR_BASE) {
 			aestk_push_string(vm, &empty_string);
 		} else {
-			aestk_push_float(vm, 0.0);
+			aestk_push_number(vm, 0.0);
 		}
 		return;
 	}
@@ -2810,15 +2810,15 @@ IMPL(FOR)
 {
 	struct subr subr;
 
-	subr.end_val = aestk_pop_float(vm);
-	subr.start_val = aestk_pop_float(vm);
+	subr.end_val = aestk_pop_number(vm);
+	subr.start_val = aestk_pop_number(vm);
 	subr.var = aestk_pop_varref(vm);
 	subr.lineno = next_line(vm);	/* XXX doesn't handle compound lines */
 	subr.step = 1;
 
 	sbrstk_push(vm, &subr);
 
-	var_set_float(vm, subr.var, subr.start_val);
+	var_set_number(vm, subr.var, subr.start_val);
 }
 
 /*
@@ -2829,7 +2829,7 @@ IMPL(FOR)
 IMPL(STEP)
 {
 	struct subr *subr = sbrstk_peek_top(vm);
-	tbvm_number step = aestk_pop_float(vm);
+	tbvm_number step = aestk_pop_number(vm);
 
 	if (subr->var == SUBR_VAR_SUBROUTINE) {
 		vm_abort(vm, "!STEPPING A SUBROUTINE");
@@ -2861,7 +2861,7 @@ IMPL(NXTFOR)
 	if (! sbrstk_pop(vm, var, &subr, false)) {
 		basic_next_error(vm);
 	}
-	newval = var_get_float(vm, var) + subr.step;
+	newval = var_get_number(vm, var) + subr.step;
 
 	if (subr.step < 0) {
 		if (newval < subr.end_val) {
@@ -2878,7 +2878,7 @@ IMPL(NXTFOR)
 		next_statement(vm);
 		sbrstk_pop(vm, var, &subr, true);
 	} else {
-		var_set_float(vm, var, newval);
+		var_set_number(vm, var, newval);
 		set_line(vm, subr.lineno, 0, true);
 	}
 }
@@ -2897,15 +2897,15 @@ IMPL(NXTFOR)
  */
 IMPL(RND)
 {
-	tbvm_number num = aestk_pop_float(vm);
+	tbvm_number num = aestk_pop_number(vm);
 
 	if (num > 1) {
 		unsigned int unum = (unsigned int)floor(num);
-		aestk_push_float(vm,
+		aestk_push_number(vm,
 		    (tbvm_number)((rand_r(&vm->rand_seed) /
 				   (RAND_MAX / unum + 1)) + 1));
 	} else if (num == 0.0) {
-		aestk_push_float(vm,
+		aestk_push_number(vm,
 		    ((tbvm_number)rand_r(&vm->rand_seed) /
 		     (tbvm_number)RAND_MAX));
 	} else {
@@ -2918,7 +2918,7 @@ IMPL(RND)
  */
 IMPL(SRND)
 {
-	tbvm_number seed = aestk_pop_float(vm);
+	tbvm_number seed = aestk_pop_number(vm);
 
 	if (seed != 0.0) {
 		vm->rand_seed = (unsigned int)floor(fabs(seed));
@@ -2938,7 +2938,7 @@ IMPL(SRND)
  */
 IMPL(ABS)
 {
-	aestk_push_float(vm, fabs(aestk_pop_float(vm)));
+	aestk_push_number(vm, fabs(aestk_pop_number(vm)));
 }
 
 /*
@@ -3009,8 +3009,8 @@ IMPL(TSTS)
  */
 IMPL(STR)
 {
-	tbvm_number num = aestk_pop_float(vm);
-	char *cp = format_float(num, vm->tmp_buf);
+	tbvm_number num = aestk_pop_number(vm);
+	char *cp = format_number(num, vm->tmp_buf);
 
 	aestk_push_string(vm, string_alloc(vm, cp, strlen(cp), 0));
 }
@@ -3021,7 +3021,7 @@ IMPL(STR)
  */
 IMPL(HEX)
 {
-	tbvm_number num = aestk_pop_float(vm);
+	tbvm_number num = aestk_pop_number(vm);
 	char *cp = &vm->tmp_buf[SIZE_LBUF];
 	unsigned int unum, n;
 	int digits = 0;
@@ -3068,7 +3068,7 @@ IMPL(VAL)
 	if (cp == string->str) {
 		val = 0.0;
 	}
-	aestk_push_float(vm, val);
+	aestk_push_number(vm, val);
 }
 
 /*
@@ -3089,7 +3089,7 @@ IMPL(CPY)
 IMPL(STRLEN)
 {
 	string *string = aestk_pop_string(vm);
-	aestk_push_float(vm, (tbvm_number)string->len);
+	aestk_push_number(vm, (tbvm_number)string->len);
 }
 
 /*
@@ -3106,7 +3106,7 @@ IMPL(ASC)
 	} else {
 		val = string->str[0];
 	}
-	aestk_push_float(vm, (tbvm_number)val);
+	aestk_push_number(vm, (tbvm_number)val);
 }
 
 /*
@@ -3114,7 +3114,7 @@ IMPL(ASC)
  */
 IMPL(CHR)
 {
-	tbvm_number val = aestk_pop_float(vm);
+	tbvm_number val = aestk_pop_number(vm);
 
 	if (!integer_p(val) || val < 0 || val > UCHAR_MAX) {
 		basic_illegal_quantity_error(vm);
@@ -3132,14 +3132,14 @@ IMPL(CHR)
  */
 IMPL(FIX)
 {
-	tbvm_number val = aestk_pop_float(vm);	/* acts as type check */
+	tbvm_number val = aestk_pop_number(vm);	/* acts as type check */
 
 	if (val >= 0.0) {
 		val = floor(val);
 	} else {
 		val = ceil(val);
 	}
-	aestk_push_float(vm, val);
+	aestk_push_number(vm, val);
 	check_math_error(vm);
 }
 
@@ -3148,8 +3148,8 @@ IMPL(FIX)
  */
 IMPL(FLR)
 {
-	tbvm_number val = floor(aestk_pop_float(vm));
-	aestk_push_float(vm, val);
+	tbvm_number val = floor(aestk_pop_number(vm));
+	aestk_push_number(vm, val);
 	check_math_error(vm);
 }
 
@@ -3158,8 +3158,8 @@ IMPL(FLR)
  */
 IMPL(CEIL)
 {
-	tbvm_number val = ceil(aestk_pop_float(vm));
-	aestk_push_float(vm, val);
+	tbvm_number val = ceil(aestk_pop_number(vm));
+	aestk_push_number(vm, val);
 	check_math_error(vm);
 }
 
@@ -3173,14 +3173,14 @@ IMPL(CEIL)
  */
 IMPL(SGN)
 {
-	tbvm_number val = aestk_pop_float(vm);
+	tbvm_number val = aestk_pop_number(vm);
 
 	if (val < 0.0) {
 		val = -1;
 	} else if (val > 0.0) {
 		val = 1;
 	}
-	aestk_push_float(vm, val);
+	aestk_push_number(vm, val);
 }
 
 /*
@@ -3189,8 +3189,8 @@ IMPL(SGN)
  */
 IMPL(ATN)
 {
-	tbvm_number val = atan(aestk_pop_float(vm));
-	aestk_push_float(vm, val);
+	tbvm_number val = atan(aestk_pop_number(vm));
+	aestk_push_number(vm, val);
 	check_math_error(vm);
 }
 
@@ -3200,8 +3200,8 @@ IMPL(ATN)
  */
 IMPL(COS)
 {
-	tbvm_number val = cos(aestk_pop_float(vm));
-	aestk_push_float(vm, val);
+	tbvm_number val = cos(aestk_pop_number(vm));
+	aestk_push_number(vm, val);
 	check_math_error(vm);
 }
 
@@ -3211,8 +3211,8 @@ IMPL(COS)
  */
 IMPL(SIN)
 {
-	tbvm_number val = sin(aestk_pop_float(vm));
-	aestk_push_float(vm, val);
+	tbvm_number val = sin(aestk_pop_number(vm));
+	aestk_push_number(vm, val);
 	check_math_error(vm);
 }
 
@@ -3222,8 +3222,8 @@ IMPL(SIN)
  */
 IMPL(TAN)
 {
-	tbvm_number val = tan(aestk_pop_float(vm));
-	aestk_push_float(vm, val);
+	tbvm_number val = tan(aestk_pop_number(vm));
+	aestk_push_number(vm, val);
 	check_math_error(vm);
 }
 
@@ -3233,8 +3233,8 @@ IMPL(TAN)
  */
 IMPL(EXP)
 {
-	tbvm_number val = exp(aestk_pop_float(vm));
-	aestk_push_float(vm, val);
+	tbvm_number val = exp(aestk_pop_number(vm));
+	aestk_push_number(vm, val);
 	check_math_error(vm);
 }
 
@@ -3244,8 +3244,8 @@ IMPL(EXP)
  */
 IMPL(LOG)
 {
-	tbvm_number val = log(aestk_pop_float(vm));
-	aestk_push_float(vm, val);
+	tbvm_number val = log(aestk_pop_number(vm));
+	aestk_push_number(vm, val);
 	check_math_error(vm);
 }
 
@@ -3255,8 +3255,8 @@ IMPL(LOG)
  */
 IMPL(SQR)
 {
-	tbvm_number val = sqrt(aestk_pop_float(vm));
-	aestk_push_float(vm, val);
+	tbvm_number val = sqrt(aestk_pop_number(vm));
+	aestk_push_number(vm, val);
 	check_math_error(vm);
 }
 
@@ -3280,7 +3280,7 @@ IMPL(MKS)
 
 	switch (val2.type) {
 	case VALUE_TYPE_INTEGER:
-	case VALUE_TYPE_FLOAT:
+	case VALUE_TYPE_NUMBER:
 		value_coerce_integer(vm, &val2);
 		if (val2.integer < 0 || val2.integer > UCHAR_MAX) {
 			basic_illegal_quantity_error(vm);
