@@ -44,7 +44,8 @@
 ;
 ; ==> Added a REM statement for comments.
 ;
-; ==> Added NEW as an alias for CLEAR.
+; ==> Renamed the original CLEAR as NEW.  Changed CLEAR to match the
+;     MS BASIC definition of allocating string and program space.
 ;
 ; ==> Added FOR / NEXT loops using new FOR, STEP, and NXTFOR VM insns.
 ;
@@ -465,13 +466,30 @@ notLIST:
 notRUN:
 
 	;
-	; CLEAR
+	; NEW
 	;
-	TST	CLR1,'CLEAR'	; CLEAR command?
-	JMP	CLR2
-CLR1:	TST	notCLR,'NEW'	; NEW is a synonym.
-CLR2:	DONEM	1		; End of statement (DIRECT-mode).
+	TST	notNEW,'NEW'	; NEW command?
+	DONEM	1		; End of statement (DIRECT-mode).
 	JMP	START		; Re-initialize VM.
+notNEW:
+
+	;
+	; CLEAR number opt-highmem
+	;
+	; opt-highmem ::=
+	;                 , number
+	;
+	; We don't need to do anything about this in this interpreter
+	; for the moment.  We do enforce the MS BASIC syntax, though.
+	;
+	TST	notCLR,'CLEAR'	; CLEAR statement?
+	TSTN	Serr		; Number required.
+	POP			; Pop the number we're not going to use.
+	TST	CLR99,','	; Separator for optional highmem arg?
+	TSTN	Serr		; Yes, number required.
+	POP			; Pop the number we're not going to use.
+CLR99:	DONEM	0		; End of statement (RUN-mode).
+	NXT			; Next statement.
 notCLR:
 
 	;
