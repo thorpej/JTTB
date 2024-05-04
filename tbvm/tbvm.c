@@ -469,6 +469,9 @@ format_integer(int num, int width, char *buf)
 static char *
 format_number(tbvm_number num, char *buf)
 {
+#ifdef TBVM_CONFIG_INTEGER_ONLY
+	return format_integer(num, 0, buf);
+#else
 	/*
 	 * Just some notes on MS BASIC number formatting:
 	 *
@@ -520,6 +523,7 @@ format_number(tbvm_number num, char *buf)
 		sprintf(buf, "%.9G", num);
 	}
 	return buf;
+#endif /* TBVM_CONFIG_INTEGER_ONLY */
 }
 
 static void
@@ -673,17 +677,93 @@ basic_out_of_data_error(tbvm *vm)
 	basic_error(vm, "OUT OF DATA");
 }
 
+/*********** Abstract number math routines **********/
+
+#ifdef TBVM_CONFIG_INTEGER_ONLY
+/*
+ * Unimplemented math routines for integer-only BASIC get converted
+ * into syntax errors.
+ */
+static inline tbvm_number
+tbvm_math_unimpl(tbvm *vm)
+{
+	basic_syntax_error(vm);
+}
+
+#define	tbvm_ceil(vm, num)		(num)
+#define	tbvm_floor(vm, num)		(num)
+
+static tbvm_number
+tbvm_abs(tbvm *vm, tbvm_number num)
+{
+	if (num < 0) {
+		return -num;
+	}
+	return num;
+}
+
+static tbvm_number
+tbvm_pow(tbvm *vm, tbvm_number num1, tbvm_number num2)
+{
+	tbvm_number i, val;
+
+	if (num2 < 0) {
+		if (num1 == 0) {
+			basic_div0_error(vm);
+		}
+		num2 = -num2;
+		for (val = 1, i = 0; i < num2; i++) {
+			val /= num1;
+		}
+	} else {
+		for (val = 1, i = 0; i < num2; i++) {
+			val *= num1;
+		}
+	}
+	return val;
+}
+
+#define	tbvm_mod(vm, num1, num2)	((num1) % (num2))
+#define	tbvm_atan(vm, num)		tbvm_math_unimpl1((vm), (num))
+#define	tbvm_cos(vm, num)		tbvm_math_unimpl1((vm), (num))
+#define	tbvm_sin(vm, num)		tbvm_math_unimpl1((vm), (num))
+#define	tbvm_tan(vm, num)		tbvm_math_unimpl1((vm), (num))
+#define	tbvm_exp(vm, num)		tbvm_math_unimpl1((vm), (num))
+#define	tbvm_log(vm, num)		tbvm_math_unimpl1((vm), (num))
+#define	tbvm_sqrt(vm, num)		tbvm_math_unimpl1((vm), (num))
+
+#else /* ! TBVM_CONFIG_INTEGER_ONLY */
+
+#define	tbvm_ceil(vm, num)		ceil(num)
+#define	tbvm_floor(vm, num)		floor(num)
+#define	tbvm_abs(vm, num)		fabs(num)
+#define	tbvm_pow(vm, num1, num2)	pow((num1), (num2))
+#define	tbvm_mod(vm, num1, num2)	fmod((num1), (num2))
+#define	tbvm_atan(vm, num)		atan(num)
+#define	tbvm_cos(vm, num)		cos(num)
+#define	tbvm_sin(vm, num)		sin(num)
+#define	tbvm_tan(vm, num)		tan(num)
+#define	tbvm_exp(vm, num)		exp(num)
+#define	tbvm_log(vm, num)		log(num)
+#define	tbvm_sqrt(vm, num)		sqrt(num)
+
+#endif /* TBVM_CONFIG_INTEGER_ONLY */
+
 /*********** Value routines **********/
 
 static int
 number_to_int(tbvm *vm, tbvm_number fval)
 {
-	int ffval = floor(fval);
+#ifdef TBVM_CONFIG_INTEGER_ONLY
+	return (int)fval;
+#else
+	int ffval = tbvm_floor(vm, fval);
 
 	if (ffval != fval) {
 		basic_illegal_quantity_error(vm);
 	}
 	return (int)ffval;
+#endif /* TBVM_CONFIG_INTEGER_ONLY */
 }
 
 static inline tbvm_number
@@ -693,9 +773,9 @@ int_to_number(tbvm *vm, int val)
 }
 
 static inline bool
-integer_p(tbvm_number val)
+integer_p(tbvm *vm, tbvm_number val)
 {
-	return floor(val) == val;
+	return tbvm_floor(vm, val) == val;
 }
 
 static bool
@@ -766,7 +846,7 @@ value_coerce_integer(tbvm *vm, struct value *val)
 		break;
 
 	case VALUE_TYPE_NUMBER:
-		if (! integer_p(val->number)) {
+		if (! integer_p(vm, val->number)) {
 			basic_illegal_quantity_error(vm);
 		}
 		val->integer = number_to_int(vm, val->number);
@@ -1856,7 +1936,7 @@ IMPL(XFER)
 	if (val == 0.0) {
 		basic_line_number_error(vm);
 	}
-	if (! integer_p(val)) {
+	if (! integer_p(vm, val)) {
 		basic_illegal_quantity_error(vm);
 	}
 	set_line(vm, (int)val, 0, false);
@@ -2327,7 +2407,7 @@ IMPL(POW)
 {
 	tbvm_number num2 = aestk_pop_number(vm);
 	tbvm_number num1 = aestk_pop_number(vm);
-	aestk_push_number(vm, pow(num1, num2));
+	aestk_push_number(vm, tbvm_pow(vm, num1, num2));
 	check_math_error(vm);
 }
 
@@ -2349,7 +2429,7 @@ IMPL(MOD)
 {
 	tbvm_number num2 = aestk_pop_number(vm);
 	tbvm_number num1 = aestk_pop_number(vm);
-	aestk_push_number(vm, fmod(num1, num2));
+	aestk_push_number(vm, tbvm_mod(vm, num1, num2));
 }
 
 /*
@@ -2519,31 +2599,6 @@ parse_number_common(tbvm *vm)
 }
 
 static bool
-parse_number(tbvm *vm, bool advance, tbvm_number *valp)
-{
-	tbvm_number val;
-	char *cp;
-
-	if (! parse_number_common(vm)) {
-		return false;
-	}
-
-	errno = 0;
-	val = strtod(&vm->lbuf[vm->lbuf_ptr], &cp);
-	if (cp == &vm->lbuf[vm->lbuf_ptr]) {
-		return false;
-	}
-	if (errno == ERANGE) {
-		basic_illegal_quantity_error(vm);
-	}
-	if (advance) {
-		advance_cursor(vm, cp - &vm->lbuf[vm->lbuf_ptr]);
-	}
-	*valp = val;
-	return true;
-}
-
-static bool
 parse_integer(tbvm *vm, bool advance, int *valp)
 {
 	long val;
@@ -2565,6 +2620,35 @@ parse_integer(tbvm *vm, bool advance, int *valp)
 	}
 	*valp = (int)val;
 	return true;
+}
+
+static bool
+parse_number(tbvm *vm, bool advance, tbvm_number *valp)
+{
+#ifdef TBVM_CONFIG_INTEGER_ONLY
+	return parse_integer(vm, advance, valp);
+#else
+	tbvm_number val;
+	char *cp;
+
+	if (! parse_number_common(vm)) {
+		return false;
+	}
+
+	errno = 0;
+	val = strtod(&vm->lbuf[vm->lbuf_ptr], &cp);
+	if (cp == &vm->lbuf[vm->lbuf_ptr]) {
+		return false;
+	}
+	if (errno == ERANGE) {
+		basic_illegal_quantity_error(vm);
+	}
+	if (advance) {
+		advance_cursor(vm, cp - &vm->lbuf[vm->lbuf_ptr]);
+	}
+	*valp = val;
+	return true;
+#endif /* TBVM_CONFIG_INTEGER_ONLY */
 }
 
 /*
@@ -2900,7 +2984,7 @@ IMPL(RND)
 	tbvm_number num = aestk_pop_number(vm);
 
 	if (num > 1) {
-		unsigned int unum = (unsigned int)floor(num);
+		unsigned int unum = (unsigned int)tbvm_floor(vm, num);
 		aestk_push_number(vm,
 		    (tbvm_number)((rand_r(&vm->rand_seed) /
 				   (RAND_MAX / unum + 1)) + 1));
@@ -2921,7 +3005,8 @@ IMPL(SRND)
 	tbvm_number seed = aestk_pop_number(vm);
 
 	if (seed != 0.0) {
-		vm->rand_seed = (unsigned int)floor(fabs(seed));
+		vm->rand_seed =
+		    (unsigned int)tbvm_floor(vm, tbvm_abs(vm, seed));
 	} else {
 		unsigned long walltime;
 
@@ -3026,7 +3111,7 @@ IMPL(HEX)
 	unsigned int unum, n;
 	int digits = 0;
 
-	if (num < 0 || !integer_p(num) || num > UINT_MAX) {
+	if (num < 0 || !integer_p(vm, num) || num > UINT_MAX) {
 		basic_illegal_quantity_error(vm);
 	}
 
@@ -3116,7 +3201,7 @@ IMPL(CHR)
 {
 	tbvm_number val = aestk_pop_number(vm);
 
-	if (!integer_p(val) || val < 0 || val > UCHAR_MAX) {
+	if (!integer_p(vm, val) || val < 0 || val > UCHAR_MAX) {
 		basic_illegal_quantity_error(vm);
 	}
 	int code = (int)val;
@@ -3135,9 +3220,9 @@ IMPL(FIX)
 	tbvm_number val = aestk_pop_number(vm);	/* acts as type check */
 
 	if (val >= 0.0) {
-		val = floor(val);
+		val = tbvm_floor(vm, val);
 	} else {
-		val = ceil(val);
+		val = tbvm_ceil(vm, val);
 	}
 	aestk_push_number(vm, val);
 	check_math_error(vm);
@@ -3148,7 +3233,7 @@ IMPL(FIX)
  */
 IMPL(FLR)
 {
-	tbvm_number val = floor(aestk_pop_number(vm));
+	tbvm_number val = tbvm_floor(vm, aestk_pop_number(vm));
 	aestk_push_number(vm, val);
 	check_math_error(vm);
 }
@@ -3158,7 +3243,7 @@ IMPL(FLR)
  */
 IMPL(CEIL)
 {
-	tbvm_number val = ceil(aestk_pop_number(vm));
+	tbvm_number val = tbvm_ceil(vm, aestk_pop_number(vm));
 	aestk_push_number(vm, val);
 	check_math_error(vm);
 }
@@ -3189,8 +3274,7 @@ IMPL(SGN)
  */
 IMPL(ATN)
 {
-	tbvm_number val = atan(aestk_pop_number(vm));
-	aestk_push_number(vm, val);
+	aestk_push_number(vm, tbvm_atan(vm, aestk_pop_number(vm)));
 	check_math_error(vm);
 }
 
@@ -3200,8 +3284,7 @@ IMPL(ATN)
  */
 IMPL(COS)
 {
-	tbvm_number val = cos(aestk_pop_number(vm));
-	aestk_push_number(vm, val);
+	aestk_push_number(vm, tbvm_cos(vm, aestk_pop_number(vm)));
 	check_math_error(vm);
 }
 
@@ -3211,8 +3294,7 @@ IMPL(COS)
  */
 IMPL(SIN)
 {
-	tbvm_number val = sin(aestk_pop_number(vm));
-	aestk_push_number(vm, val);
+	aestk_push_number(vm, tbvm_sin(vm, aestk_pop_number(vm)));
 	check_math_error(vm);
 }
 
@@ -3222,8 +3304,7 @@ IMPL(SIN)
  */
 IMPL(TAN)
 {
-	tbvm_number val = tan(aestk_pop_number(vm));
-	aestk_push_number(vm, val);
+	aestk_push_number(vm, tbvm_tan(vm, aestk_pop_number(vm)));
 	check_math_error(vm);
 }
 
@@ -3233,8 +3314,7 @@ IMPL(TAN)
  */
 IMPL(EXP)
 {
-	tbvm_number val = exp(aestk_pop_number(vm));
-	aestk_push_number(vm, val);
+	aestk_push_number(vm, tbvm_exp(vm, aestk_pop_number(vm)));
 	check_math_error(vm);
 }
 
@@ -3244,8 +3324,7 @@ IMPL(EXP)
  */
 IMPL(LOG)
 {
-	tbvm_number val = log(aestk_pop_number(vm));
-	aestk_push_number(vm, val);
+	aestk_push_number(vm, tbvm_log(vm, aestk_pop_number(vm)));
 	check_math_error(vm);
 }
 
@@ -3255,8 +3334,7 @@ IMPL(LOG)
  */
 IMPL(SQR)
 {
-	tbvm_number val = sqrt(aestk_pop_number(vm));
-	aestk_push_number(vm, val);
+	aestk_push_number(vm, tbvm_sqrt(vm, aestk_pop_number(vm)));
 	check_math_error(vm);
 }
 
