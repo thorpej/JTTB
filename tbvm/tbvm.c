@@ -723,7 +723,24 @@ tbvm_pow(tbvm *vm, tbvm_number num1, tbvm_number num2)
 	return val;
 }
 
-#define	tbvm_mod(vm, num1, num2)	((num1) % (num2))
+static tbvm_number
+tbvm_div(tbvm *vm, tbvm_number num1, tbvm_number num2)
+{
+	if (num2 == 0) {
+		basic_div0_error(vm);
+	}
+	return num1 / num2;
+}
+
+static tbvm_number
+tbvm_mod(tbvm *vm, tbvm_number num1, tbvm_number num2)
+{
+	if (num2 == 0) {
+		basic_div0_error(vm);
+	}
+	return num1 % num2;
+}
+
 #define	tbvm_atan(vm, num)		tbvm_math_unimpl1((vm), (num))
 #define	tbvm_cos(vm, num)		tbvm_math_unimpl1((vm), (num))
 #define	tbvm_sin(vm, num)		tbvm_math_unimpl1((vm), (num))
@@ -732,12 +749,15 @@ tbvm_pow(tbvm *vm, tbvm_number num1, tbvm_number num2)
 #define	tbvm_log(vm, num)		tbvm_math_unimpl1((vm), (num))
 #define	tbvm_sqrt(vm, num)		tbvm_math_unimpl1((vm), (num))
 
+#define	check_math_error(vm)		/* nothing */
+
 #else /* ! TBVM_CONFIG_INTEGER_ONLY */
 
 #define	tbvm_ceil(vm, num)		ceil(num)
 #define	tbvm_floor(vm, num)		floor(num)
 #define	tbvm_abs(vm, num)		fabs(num)
 #define	tbvm_pow(vm, num1, num2)	pow((num1), (num2))
+#define	tbvm_div(vm, num1, num2)	((num1) / (num2))
 #define	tbvm_mod(vm, num1, num2)	fmod((num1), (num2))
 #define	tbvm_atan(vm, num)		atan(num)
 #define	tbvm_cos(vm, num)		cos(num)
@@ -746,6 +766,25 @@ tbvm_pow(tbvm *vm, tbvm_number num1, tbvm_number num2)
 #define	tbvm_exp(vm, num)		exp(num)
 #define	tbvm_log(vm, num)		log(num)
 #define	tbvm_sqrt(vm, num)		sqrt(num)
+
+static void
+check_math_error(tbvm *vm)
+{
+	int excepts =
+	    fetestexcept(FE_UNDERFLOW|FE_OVERFLOW|FE_DIVBYZERO|FE_INVALID);
+
+	if (excepts == 0) {
+		return;
+	}
+
+	feclearexcept(FE_ALL_EXCEPT);
+
+	if (excepts & FE_DIVBYZERO) {
+		basic_div0_error(vm);
+	} else {
+		basic_math_error(vm);
+	}
+}
 
 #endif /* TBVM_CONFIG_INTEGER_ONLY */
 
@@ -1204,25 +1243,6 @@ static const struct tbvm_file_io default_file_io = {
 };
 
 /*********** Program execution helper routines **********/
-
-static void
-check_math_error(tbvm *vm)
-{
-	int excepts =
-	    fetestexcept(FE_UNDERFLOW|FE_OVERFLOW|FE_DIVBYZERO|FE_INVALID);
-
-	if (excepts == 0) {
-		return;
-	}
-
-	feclearexcept(FE_ALL_EXCEPT);
-
-	if (excepts & FE_DIVBYZERO) {
-		basic_div0_error(vm);
-	} else {
-		basic_math_error(vm);
-	}
-}
 
 static void
 reset_stacks(tbvm *vm)
@@ -2418,7 +2438,7 @@ IMPL(DIV)
 {
 	tbvm_number num2 = aestk_pop_number(vm);
 	tbvm_number num1 = aestk_pop_number(vm);
-	aestk_push_number(vm, num1 / num2);
+	aestk_push_number(vm, tbvm_div(vm, num1, num2));
 	check_math_error(vm);
 }
 
