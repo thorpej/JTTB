@@ -394,52 +394,7 @@ string_freeall(tbvm *vm)
 	vm->strings_need_gc = 0;
 }
 
-/*********** Value routines **********/
-
-static bool
-value_valid_p(const struct value *value)
-{
-	bool rv = true;
-
-	switch (value->type) {
-	case VALUE_TYPE_INTEGER:
-		break;
-
-	case VALUE_TYPE_FLOAT:
-		break;
-
-	case VALUE_TYPE_STRING:
-		rv = (value->string != NULL);
-		break;
-
-	case VALUE_TYPE_VARREF:
-		rv = (value->integer >= 0 && value->integer <= NUM_VARS);
-		break;
-
-	default:
-		rv = false;
-	}
-
-	return rv;
-}
-
-static void
-value_retain(tbvm *vm, const struct value *value)
-{
-	if (value->type == VALUE_TYPE_STRING) {
-		string_retain(vm, value->string);
-	}
-}
-
-static void
-value_release(tbvm *vm, const struct value *value)
-{
-	if (value->type == VALUE_TYPE_STRING) {
-		string_release(vm, value->string);
-	}
-}
-
-/*********** Print formatting helper routines **********/
+/*********** Print formatting and type conversion helper routines **********/
 
 static void
 print_crlf(tbvm *vm)
@@ -560,12 +515,6 @@ format_float(double num, char *buf)
 		sprintf(buf, "%.9G", num);
 	}
 	return buf;
-}
-
-static inline bool
-integer_p(double val)
-{
-	return floor(val) == val;
 }
 
 static void
@@ -717,6 +666,123 @@ static void DOES_NOT_RETURN
 basic_out_of_data_error(tbvm *vm)
 {
 	basic_error(vm, "OUT OF DATA");
+}
+
+/*********** Value routines **********/
+
+static int
+float_to_int(tbvm *vm, double fval)
+{
+	int ffval = floor(fval);
+
+	if (ffval != fval) {
+		basic_illegal_quantity_error(vm);
+	}
+	return (int)ffval;
+}
+
+static inline double
+int_to_float(tbvm *vm, int val)
+{
+	return (double)val;
+}
+
+static inline bool
+integer_p(double val)
+{
+	return floor(val) == val;
+}
+
+static bool
+value_valid_p(const struct value *value)
+{
+	bool rv = true;
+
+	switch (value->type) {
+	case VALUE_TYPE_INTEGER:
+		break;
+
+	case VALUE_TYPE_FLOAT:
+		break;
+
+	case VALUE_TYPE_STRING:
+		rv = (value->string != NULL);
+		break;
+
+	case VALUE_TYPE_VARREF:
+		rv = (value->integer >= 0 && value->integer <= NUM_VARS);
+		break;
+
+	default:
+		rv = false;
+	}
+
+	return rv;
+}
+
+static void
+value_retain(tbvm *vm, const struct value *value)
+{
+	if (value->type == VALUE_TYPE_STRING) {
+		string_retain(vm, value->string);
+	}
+}
+
+static void
+value_release(tbvm *vm, const struct value *value)
+{
+	if (value->type == VALUE_TYPE_STRING) {
+		string_release(vm, value->string);
+	}
+}
+
+static void
+value_coerce_float(tbvm *vm, struct value *val)
+{
+	switch (val->type) {
+	case VALUE_TYPE_INTEGER:
+		val->fpnumber = int_to_float(vm, val->integer);
+		val->type = VALUE_TYPE_FLOAT;
+		break;
+
+	case VALUE_TYPE_FLOAT:
+		break;
+
+	default:
+		basic_wrong_type_error(vm);
+	}
+}
+
+static void
+value_coerce_integer(tbvm *vm, struct value *val)
+{
+	switch (val->type) {
+	case VALUE_TYPE_INTEGER:
+		break;
+
+	case VALUE_TYPE_FLOAT:
+		if (! integer_p(val->fpnumber)) {
+			basic_illegal_quantity_error(vm);
+		}
+		val->integer = float_to_int(vm, val->fpnumber);
+		val->type = VALUE_TYPE_INTEGER;
+		break;
+
+	default:
+		basic_wrong_type_error(vm);
+	}
+}
+
+static void
+value_coerce_string(tbvm *vm, struct value *val)
+{
+	switch (val->type) {
+	case VALUE_TYPE_STRING:
+		break;
+
+	default:
+		basic_wrong_type_error(vm);
+	}
 }
 
 /*********** Generic stack routines **********/
@@ -879,7 +945,8 @@ aestk_pop_integer(tbvm *vm)
 {
 	struct value value;
 
-	aestk_pop_value(vm, VALUE_TYPE_INTEGER, &value);
+	aestk_pop_value(vm, VALUE_TYPE_ANY, &value);
+	value_coerce_integer(vm, &value);
 	return value.integer;
 }
 
@@ -898,7 +965,8 @@ aestk_pop_float(tbvm *vm)
 {
 	struct value value;
 
-	aestk_pop_value(vm, VALUE_TYPE_FLOAT, &value);
+	aestk_pop_value(vm, VALUE_TYPE_ANY, &value);
+	value_coerce_float(vm, &value);
 	return value.fpnumber;
 }
 
@@ -1069,17 +1137,6 @@ check_math_error(tbvm *vm)
 	} else {
 		basic_math_error(vm);
 	}
-}
-
-static int
-float_to_int(tbvm *vm, double fval)
-{
-	int ffval = floor(fval);
-
-	if (ffval != fval) {
-		basic_illegal_quantity_error(vm);
-	}
-	return (int)ffval;
 }
 
 static void
@@ -1720,6 +1777,10 @@ IMPL(PRN)
 	aestk_pop_value(vm, VALUE_TYPE_ANY, &value);
 
 	switch (value.type) {
+	case VALUE_TYPE_INTEGER:
+		print_integer(vm, value.integer);
+		break;
+
 	case VALUE_TYPE_FLOAT:
 		print_float(vm, value.fpnumber);
 		break;
@@ -1832,6 +1893,13 @@ compare(tbvm *vm)
 	aestk_pop_value(vm, VALUE_TYPE_ANY, &val2);
 	rel = aestk_pop_integer(vm);
 	aestk_pop_value(vm, VALUE_TYPE_ANY, &val1);
+
+	if (val1.type != VALUE_TYPE_STRING) {
+		value_coerce_float(vm, &val1);
+	}
+	if (val2.type != VALUE_TYPE_STRING) {
+		value_coerce_float(vm, &val2);
+	}
 
 	/*
 	 * Only numbers and string, and they must both being
@@ -2165,13 +2233,34 @@ IMPL(ERR)
 IMPL(ADD)
 {
 	struct value val1, val2;
-	double newval;
 
 	aestk_pop_value(vm, VALUE_TYPE_ANY, &val2);
 	aestk_pop_value(vm, VALUE_TYPE_ANY, &val1);
 
+	/*
+	 * Get both values into the same type.
+	 */
 	if (val1.type != val2.type) {
-		basic_wrong_type_error(vm);
+		/*
+		 * If either is a float, both must be a float.
+		 */
+		if (val1.type == VALUE_TYPE_FLOAT ||
+		    val2.type == VALUE_TYPE_FLOAT) {
+			/*
+			 * value_coerce_float() will WRONG TYPE
+			 * if the value is a string.
+			 */
+			value_coerce_float(vm, &val1);
+			value_coerce_float(vm, &val2);
+		} else
+		/*
+		 * If either is a string, both must be a string.
+		 */
+		if (val1.type == VALUE_TYPE_STRING ||
+		    val2.type == VALUE_TYPE_STRING) {
+			value_coerce_string(vm, &val1);
+			value_coerce_string(vm, &val2);
+		}
 	}
 
 	switch (val1.type) {
@@ -2180,8 +2269,7 @@ IMPL(ADD)
 		break;
 
 	case VALUE_TYPE_FLOAT:
-		newval = val1.fpnumber + val2.fpnumber;
-		aestk_push_float(vm, newval);
+		aestk_push_float(vm, val1.fpnumber + val2.fpnumber);
 		check_math_error(vm);
 		break;
 
@@ -2203,8 +2291,7 @@ IMPL(SUB)
 {
 	double num2 = aestk_pop_float(vm);
 	double num1 = aestk_pop_float(vm);
-	double newval = num1 - num2;
-	aestk_push_float(vm, newval);
+	aestk_push_float(vm, num1 - num2);
 	check_math_error(vm);
 }
 
@@ -2213,8 +2300,7 @@ IMPL(SUB)
  */
 IMPL(NEG)
 {
-	double newval = -aestk_pop_float(vm);
-	aestk_push_float(vm, newval);
+	aestk_push_float(vm, -aestk_pop_float(vm));
 	check_math_error(vm);
 }
 
@@ -2225,8 +2311,7 @@ IMPL(MUL)
 {
 	double num2 = aestk_pop_float(vm);
 	double num1 = aestk_pop_float(vm);
-	double newval = num1 * num2;
-	aestk_push_float(vm, newval);
+	aestk_push_float(vm, num1 * num2);
 	check_math_error(vm);
 }
 
@@ -2237,8 +2322,7 @@ IMPL(POW)
 {
 	double num2 = aestk_pop_float(vm);
 	double num1 = aestk_pop_float(vm);
-	double newval = pow(num1, num2);
-	aestk_push_float(vm, newval);
+	aestk_push_float(vm, pow(num1, num2));
 	check_math_error(vm);
 }
 
@@ -2249,8 +2333,7 @@ IMPL(DIV)
 {
 	double num2 = aestk_pop_float(vm);
 	double num1 = aestk_pop_float(vm);
-	double newval = num1 / num2;
-	aestk_push_float(vm, newval);
+	aestk_push_float(vm, num1 / num2);
 	check_math_error(vm);
 }
 
@@ -2261,8 +2344,7 @@ IMPL(MOD)
 {
 	double num2 = aestk_pop_float(vm);
 	double num1 = aestk_pop_float(vm);
-	double newval = fmod(num1, num2);
-	aestk_push_float(vm, newval);
+	aestk_push_float(vm, fmod(num1, num2));
 }
 
 /*
@@ -2532,43 +2614,8 @@ IMPL(LST)
  */
 IMPL(LSTX)
 {
-	struct value val1, val2;
-	int firstline, lastline;
-
-	aestk_pop_value(vm, VALUE_TYPE_ANY, &val2);
-	aestk_pop_value(vm, VALUE_TYPE_ANY, &val1);
-
-	switch (val1.type) {
-	case VALUE_TYPE_INTEGER:
-		firstline = val1.integer;
-		break;
-
-	case VALUE_TYPE_FLOAT:
-		if (! integer_p(val1.fpnumber)) {
-			basic_illegal_quantity_error(vm);
-		}
-		firstline = (int)val1.fpnumber;
-		break;
-
-	default:
-		basic_illegal_quantity_error(vm);
-	}
-
-	switch (val2.type) {
-	case VALUE_TYPE_INTEGER:
-		lastline = val2.integer;
-		break;
-
-	case VALUE_TYPE_FLOAT:
-		if (! integer_p(val2.fpnumber)) {
-			basic_illegal_quantity_error(vm);
-		}
-		lastline = (int)val2.fpnumber;
-		break;
-
-	default:
-		basic_illegal_quantity_error(vm);
-	}
+	int lastline = aestk_pop_integer(vm);
+	int firstline = aestk_pop_integer(vm);
 
 	list_program(vm, firstline, lastline);
 }
@@ -2865,24 +2912,7 @@ IMPL(RND)
  */
 IMPL(SRND)
 {
-	struct value val;
-	double seed;
-
-	aestk_pop_value(vm, VALUE_TYPE_ANY, &val);
-
-	switch (val.type) {
-	case VALUE_TYPE_INTEGER:
-		seed = (double)val.integer;
-		break;
-
-	case VALUE_TYPE_FLOAT:
-		seed = val.fpnumber;
-		break;
-
-	default:
-		basic_wrong_type_error(vm);
-		break;
-	}
+	double seed = aestk_pop_float(vm);
 
 	if (seed != 0.0) {
 		vm->rand_seed = (unsigned int)floor(fabs(seed));
@@ -3231,26 +3261,25 @@ IMPL(SQR)
  */
 IMPL(MKS)
 {
-	double val1;
 	struct value val2;
+	int count;
 	char ch;
 
 	aestk_pop_value(vm, VALUE_TYPE_ANY, &val2);
-	val1 = aestk_pop_float(vm);
+	count = aestk_pop_integer(vm);
 
-	if (! integer_p(val1) || val1 < 1.0 || val1 > 255.0) {
+	if (count < 1 || count > 255) {
 		basic_illegal_quantity_error(vm);
 	}
-	int count = (int)val1;
 
 	switch (val2.type) {
+	case VALUE_TYPE_INTEGER:
 	case VALUE_TYPE_FLOAT:
-		if (! integer_p(val2.fpnumber) ||
-		    val2.fpnumber < 0.0 ||
-		    val2.fpnumber > (double)UCHAR_MAX) {
+		value_coerce_integer(vm, &val2);
+		if (val2.integer < 0 || val2.integer > UCHAR_MAX) {
 			basic_illegal_quantity_error(vm);
 		}
-		ch = (char)(int)val2.fpnumber;
+		ch = (char)val2.integer;
 		break;
 
 	case VALUE_TYPE_STRING:
@@ -3290,24 +3319,11 @@ IMPL(SBSTR)
 	int mode = aestk_pop_integer(vm);
 	int pos = -1, len = -1;
 	string *string, *newstr;
-	struct value value;
 
 	switch (mode) {
 	case 0:
-		len = float_to_int(vm, aestk_pop_float(vm));
-		aestk_pop_value(vm, VALUE_TYPE_ANY, &value);
-		switch (value.type) {
-		case VALUE_TYPE_INTEGER:
-			pos = value.integer;
-			break;
-
-		case VALUE_TYPE_FLOAT:
-			pos = float_to_int(vm, value.fpnumber);
-			break;
-
-		default:
-			basic_wrong_type_error(vm);
-		}
+		len = aestk_pop_integer(vm);
+		pos = aestk_pop_integer(vm);
 		string = aestk_pop_string(vm);
 		if (pos < 1 || len < 0) {
 			basic_illegal_quantity_error(vm);
@@ -3317,7 +3333,7 @@ IMPL(SBSTR)
 		break;
 
 	case 1:
-		pos = float_to_int(vm, aestk_pop_float(vm));
+		pos = aestk_pop_integer(vm);
 		string = aestk_pop_string(vm);
 		if (pos < 1) {
 			basic_illegal_quantity_error(vm);
@@ -3332,7 +3348,7 @@ IMPL(SBSTR)
 		break;
 
 	case 2:
-		len = float_to_int(vm, aestk_pop_float(vm));
+		len = aestk_pop_integer(vm);
 		string = aestk_pop_string(vm);
 		if (len < 0) {
 			basic_illegal_quantity_error(vm);
