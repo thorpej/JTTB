@@ -3369,8 +3369,7 @@ IMPL(SBSTR)
 		return;
 	}
 
-	newstr = string_alloc(vm, NULL, len, 0);
-	memcpy(newstr->str, &string->str[pos], len);
+	newstr = string_alloc(vm, &string->str[pos], len, string->lineno);
 	aestk_push_string(vm, newstr);
 }
 
