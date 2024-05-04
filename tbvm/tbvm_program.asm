@@ -813,7 +813,7 @@ notRIGHT:
 	TST	notLEFT,'LEFT$'	; LEFT$() function?
 	TST	Serr,'('
 	CALL	EXPR		; First argument is string expression.
-	LIT	0		; Position argument is 0 for SUBSTR 0.
+	LIT	1		; Position argument is 1 for SUBSTR 0.
 	TST	Serr,','
 	CALL	EXPR		; Second argument is numeric expression.
 	LIT	0		; SUBSTR mode 0.

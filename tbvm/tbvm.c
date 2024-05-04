@@ -3307,17 +3307,21 @@ IMPL(SBSTR)
 			basic_wrong_type_error(vm);
 		}
 		string = aestk_pop_string(vm);
-		if (pos < 0 || len < 0) {
+		if (pos < 1 || len < 0) {
 			basic_illegal_quantity_error(vm);
 		}
+		/* Starting position is 1-referenced. */
+		pos--;
 		break;
 
 	case 1:
 		pos = float_to_int(vm, aestk_pop_float(vm));
 		string = aestk_pop_string(vm);
-		if (pos < 0) {
+		if (pos < 1) {
 			basic_illegal_quantity_error(vm);
 		}
+		/* Starting position is 1-referenced. */
+		pos--;
 		if (pos >= string->len) {
 			len = 0;
 		} else {
