@@ -247,7 +247,6 @@ string_alloc(tbvm *vm, char *str, size_t len, int lineno)
 		 * the program text.
 		 */
 		string->str = str;
-		string->len = len;
 		vm->static_strings_valid = true;
 	} else {
 		string->str = calloc(1, len + 1);
