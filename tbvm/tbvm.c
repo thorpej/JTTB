@@ -635,11 +635,13 @@ basic_div0_error(tbvm *vm)
 	basic_error(vm, "DIVISION BY ZERO");
 }
 
+#ifndef TBVM_CONFIG_INTEGER_ONLY
 static void DOES_NOT_RETURN
 basic_math_error(tbvm *vm)
 {
 	basic_error(vm, "ARITHMETIC EXCEPTION");
 }
+#endif /* ! TBVM_CONFIG_INTEGER_ONLY */
 
 static void DOES_NOT_RETURN
 basic_number_range_error(tbvm *vm)
@@ -741,13 +743,13 @@ tbvm_mod(tbvm *vm, tbvm_number num1, tbvm_number num2)
 	return num1 % num2;
 }
 
-#define	tbvm_atan(vm, num)		tbvm_math_unimpl1((vm), (num))
-#define	tbvm_cos(vm, num)		tbvm_math_unimpl1((vm), (num))
-#define	tbvm_sin(vm, num)		tbvm_math_unimpl1((vm), (num))
-#define	tbvm_tan(vm, num)		tbvm_math_unimpl1((vm), (num))
-#define	tbvm_exp(vm, num)		tbvm_math_unimpl1((vm), (num))
-#define	tbvm_log(vm, num)		tbvm_math_unimpl1((vm), (num))
-#define	tbvm_sqrt(vm, num)		tbvm_math_unimpl1((vm), (num))
+#define	tbvm_atan(vm, num)		tbvm_math_unimpl((vm))
+#define	tbvm_cos(vm, num)		tbvm_math_unimpl((vm))
+#define	tbvm_sin(vm, num)		tbvm_math_unimpl((vm))
+#define	tbvm_tan(vm, num)		tbvm_math_unimpl((vm))
+#define	tbvm_exp(vm, num)		tbvm_math_unimpl((vm))
+#define	tbvm_log(vm, num)		tbvm_math_unimpl((vm))
+#define	tbvm_sqrt(vm, num)		tbvm_math_unimpl((vm))
 
 #define	check_math_error(vm)		/* nothing */
 
@@ -3043,7 +3045,7 @@ IMPL(SRND)
  */
 IMPL(ABS)
 {
-	aestk_push_number(vm, fabs(aestk_pop_number(vm)));
+	aestk_push_number(vm, tbvm_abs(vm, aestk_pop_number(vm)));
 }
 
 /*
