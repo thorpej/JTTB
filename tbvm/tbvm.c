@@ -601,7 +601,9 @@ basic_error(tbvm *vm, const char *msg)
 	if (vm->prog_file != NULL) {
 		prog_file_fini(vm);
 	}
+	vm_cons_putchar(vm, '?');
 	print_cstring(vm, msg);
+	print_cstring(vm, " ERROR");
 	if (! vm->direct) {
 		print_cstring(vm, " AT LINE ");
 		print_integer(vm, vm->lineno);
@@ -616,105 +618,105 @@ basic_error(tbvm *vm, const char *msg)
 static void DOES_NOT_RETURN
 basic_syntax_error(tbvm *vm)
 {
-	basic_error(vm, "?SYNTAX ERROR");
+	basic_error(vm, "SYNTAX");
 }
 
 static void DOES_NOT_RETURN
 basic_missing_line_error(tbvm *vm)
 {
-	basic_error(vm, "?MISSING LINE");
+	basic_error(vm, "MISSING LINE");
 }
 
 static void DOES_NOT_RETURN
 basic_line_number_error(tbvm *vm)
 {
-	basic_error(vm, "?LINE NUMBER OUT OF RANGE");
+	basic_error(vm, "LINE NUMBER OUT OF RANGE");
 }
 
 static void DOES_NOT_RETURN
 basic_gosub_error(tbvm *vm)
 {
-	basic_error(vm, "?TOO MANY GOSUBS");
+	basic_error(vm, "TOO MANY GOSUBS");
 }
 
 static void DOES_NOT_RETURN
 basic_return_error(tbvm *vm)
 {
-	basic_error(vm, "?RETURN WITHOUT GOSUB");
+	basic_error(vm, "RETURN WITHOUT GOSUB");
 }
 
 static void DOES_NOT_RETURN
 basic_for_error(tbvm *vm)
 {
-	basic_error(vm, "?TOO MANY FOR LOOPS");
+	basic_error(vm, "TOO MANY FOR LOOPS");
 }
 
 static void DOES_NOT_RETURN
 basic_next_error(tbvm *vm)
 {
-	basic_error(vm, "?NEXT WITHOUT FOR");
+	basic_error(vm, "NEXT WITHOUT FOR");
 }
 
 static void DOES_NOT_RETURN
 basic_expression_error(tbvm *vm)
 {
-	basic_error(vm, "?EXPRESSION TOO COMPLEX");
+	basic_error(vm, "EXPRESSION TOO COMPLEX");
 }
 
 #if 0
 static void DOES_NOT_RETURN
 basic_too_many_lines_error(tbvm *vm)
 {
-	basic_error(vm, "?TOO MANY LINES");
+	basic_error(vm, "TOO MANY LINES");
 }
 #endif
 
 static void DOES_NOT_RETURN
 basic_div0_error(tbvm *vm)
 {
-	basic_error(vm, "?DIVISION BY ZERO");
+	basic_error(vm, "DIVISION BY ZERO");
 }
 
 static void DOES_NOT_RETURN
 basic_math_error(tbvm *vm)
 {
-	basic_error(vm, "?ARITHMETIC EXCEPTION");
+	basic_error(vm, "ARITHMETIC EXCEPTION");
 }
 
 static void DOES_NOT_RETURN
 basic_number_range_error(tbvm *vm)
 {
-	basic_error(vm, "?NUMBER OUT OF RANGE");
+	basic_error(vm, "NUMBER OUT OF RANGE");
 }
 
 static void DOES_NOT_RETURN
 basic_wrong_type_error(tbvm *vm)
 {
-	basic_error(vm, "?WRONG VALUE TYPE");
+	basic_error(vm, "WRONG VALUE TYPE");
 }
 
 static void DOES_NOT_RETURN
 basic_file_not_found_error(tbvm *vm)
 {
-	basic_error(vm, "?FILE NOT FOUND");
+	basic_error(vm, "FILE NOT FOUND");
 }
 
 static void DOES_NOT_RETURN
 basic_wrong_mode_error(tbvm *vm)
 {
-	basic_error(vm, "?WRONG MODE");
+	basic_error(vm, "WRONG MODE");
 }
 
 static void DOES_NOT_RETURN
 basic_illegal_quantity_error(tbvm *vm)
 {
-	basic_error(vm, "?ILLEGAL QUANTITY");
+	basic_error(vm, "ILLEGAL QUANTITY");
 }
 
 static void DOES_NOT_RETURN
 basic_out_of_data_error(tbvm *vm)
 {
-	basic_error(vm, "?OUT OF DATA");
+	basic_error(vm, "OUT OF DATA");
 }
 
 /*********** Generic stack routines **********/
