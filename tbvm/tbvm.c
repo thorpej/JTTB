@@ -1139,10 +1139,21 @@ aestk_pop_varref(tbvm *vm)
 static void
 var_init(tbvm *vm)
 {
-	for (int i = SVAR_BASE; i < NUM_VARS; i++) {
-		value_release(vm, &vm->vars[i]);
+	struct value *val;
+	int i;
+
+	for (i = 0; i < SVAR_BASE; i++) {
+		val = &vm->vars[i];
+		value_release(vm, val);
+		val->type = VALUE_TYPE_NUMBER;
+		val->number = 0;
 	}
-	memset(vm->vars, 0, sizeof(vm->vars));
+	for (; i < NUM_VARS; i++) {
+		val = &vm->vars[i];
+		value_release(vm, val);
+		val->type = VALUE_TYPE_STRING;
+		val->string = &empty_string;
+	}
 	string_gc(vm);
 }
 
@@ -1183,12 +1194,11 @@ static void
 var_get_value(tbvm *vm, int idx, struct value *valp)
 {
 	struct value *slot = var_slot(vm, idx);
-	if (idx >= SVAR_BASE && slot->type != VALUE_TYPE_STRING) {
-		valp->type = VALUE_TYPE_STRING;
-		valp->string = &empty_string;
-	} else {
-		*valp = *slot;
+	if (slot->type != VALUE_TYPE_NUMBER &&
+	    slot->type != VALUE_TYPE_STRING) {
+		vm_abort(vm, "!UNINITIALIZED VARIABLE");
 	}
+	*valp = *slot;
 }
 
 static void
@@ -1196,11 +1206,7 @@ var_set_value(tbvm *vm, int idx, const struct value *valp)
 {
 	struct value *slot = var_slot(vm, idx);
 
-	if (idx >= SVAR_BASE) {
-		if (valp->type != VALUE_TYPE_STRING) {
-			basic_wrong_type_error(vm);
-		}
-	} else if (valp->type != VALUE_TYPE_NUMBER) {
+	if (valp->type != slot->type) {
 		basic_wrong_type_error(vm);
 	}
 	value_release(vm, slot);
@@ -2699,16 +2705,6 @@ IMPL(IND)
 	struct value value;
 
 	var_get_value(vm, var, &value);
-
-	if (value.type == VALUE_TYPE_ANY) {
-		/* Uninitialized variable. */
-		if (var >= SVAR_BASE) {
-			aestk_push_string(vm, &empty_string);
-		} else {
-			aestk_push_number(vm, 0.0);
-		}
-		return;
-	}
 	aestk_push_value(vm, &value);
 }
 
