@@ -1130,6 +1130,26 @@ aestk_pop_value(tbvm *vm, int type, struct value *valp)
 	}
 }
 
+static struct value *
+aestk_peek(tbvm *vm, int idx)
+{
+	if (idx >= vm->aestk_ptr) {
+		return NULL;
+	}
+	return &vm->aestk[vm->aestk_ptr - (1 + idx)];
+}
+
+static void
+aestk_popn(tbvm *vm, int count)
+{
+	struct value value;
+	int i;
+
+	for (i = 0; i < count; i++) {
+		aestk_pop_value(vm, VALUE_TYPE_ANY, &value);
+	}
+}
+
 static void
 aestk_reset(tbvm *vm)
 {
