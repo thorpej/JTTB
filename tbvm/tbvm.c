@@ -1961,7 +1961,7 @@ IMPL(XFER)
 	tbvm_number val = aestk_pop_number(vm);
 
 	/* Don't let this put us in direct mode. */
-	if (val == 0.0) {
+	if (val == 0) {
 		basic_line_number_error(vm);
 	}
 	if (! integer_p(vm, val)) {
@@ -2936,7 +2936,7 @@ IMPL(STEP)
 	if (subr->var == SUBR_VAR_SUBROUTINE) {
 		vm_abort(vm, "!STEPPING A SUBROUTINE");
 	}
-	if (step == 0.0) {
+	if (step == 0) {
 		basic_illegal_quantity_error(vm);
 	}
 
@@ -3006,7 +3006,7 @@ IMPL(RND)
 		aestk_push_number(vm,
 		    (tbvm_number)((rand_r(&vm->rand_seed) /
 				   (RAND_MAX / unum + 1)) + 1));
-	} else if (num == 0.0) {
+	} else if (num == 0) {
 		aestk_push_number(vm,
 		    ((tbvm_number)rand_r(&vm->rand_seed) /
 		     (tbvm_number)RAND_MAX));
@@ -3022,7 +3022,7 @@ IMPL(SRND)
 {
 	tbvm_number seed = aestk_pop_number(vm);
 
-	if (seed != 0.0) {
+	if (seed != 0) {
 		vm->rand_seed =
 		    (unsigned int)tbvm_floor(vm, tbvm_abs(vm, seed));
 	} else {
@@ -3169,7 +3169,7 @@ IMPL(VAL)
 		basic_illegal_quantity_error(vm);
 	}
 	if (cp == string->str) {
-		val = 0.0;
+		val = 0;
 	}
 	aestk_push_number(vm, val);
 }
@@ -3237,7 +3237,7 @@ IMPL(FIX)
 {
 	tbvm_number val = aestk_pop_number(vm);	/* acts as type check */
 
-	if (val >= 0.0) {
+	if (val >= 0) {
 		val = tbvm_floor(vm, val);
 	} else {
 		val = tbvm_ceil(vm, val);
@@ -3278,9 +3278,9 @@ IMPL(SGN)
 {
 	tbvm_number val = aestk_pop_number(vm);
 
-	if (val < 0.0) {
+	if (val < 0) {
 		val = -1;
-	} else if (val > 0.0) {
+	} else if (val > 0) {
 		val = 1;
 	}
 	aestk_push_number(vm, val);
