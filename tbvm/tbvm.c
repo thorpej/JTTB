@@ -100,6 +100,16 @@ typedef struct string {
 	int lineno;
 } string;
 
+struct array_dimension {
+	int nelem;
+	struct value *elem;
+};
+
+struct array {
+	int ndim;
+	struct array_dimension *dims;
+};
+
 struct value {
 	int type;
 	union {
@@ -107,12 +117,14 @@ struct value {
 		tbvm_number	number;
 		string *	string;
 		var_ref		var_ref;
+		struct array *	array;
 	};
 };
 #define	VALUE_TYPE_ANY		0
 #define	VALUE_TYPE_INTEGER	1	/* integer field */
 #define	VALUE_TYPE_NUMBER	2	/* number field */
 #define	VALUE_TYPE_STRING	3	/* string field */
+#define	VALUE_TYPE_ARRAY	9	/* dimensioned array */
 #define	VALUE_TYPE_VARREF	10	/* var_ref field */
 
 struct tbvm {
@@ -849,19 +861,75 @@ value_valid_p(tbvm *vm, const struct value *value)
 }
 
 static void
-value_retain(tbvm *vm, const struct value *value)
+value_retain(tbvm *vm, struct value *value)
 {
-	if (value->type == VALUE_TYPE_STRING) {
+	switch (value->type) {
+	case VALUE_TYPE_STRING:
 		string_retain(vm, value->string);
+		break;
+
+	default:
+		break;
 	}
 }
 
 static void
-value_release(tbvm *vm, const struct value *value)
+value_init(tbvm *vm, var_ref slot, int type)
 {
-	if (value->type == VALUE_TYPE_STRING) {
-		string_release(vm, value->string);
+	switch ((slot->type = type)) {
+	case VALUE_TYPE_NUMBER:
+		slot->number = 0;
+		break;
+
+	case VALUE_TYPE_STRING:
+		slot->string = &empty_string;
+		break;
+
+	default:
+		vm_abort(vm, "!INVALID VALUE INIT");
 	}
+}
+
+static void
+value_release_and_init(tbvm *vm, struct value *value, int type)
+{
+	int d, e;
+
+	switch (value->type) {
+	case VALUE_TYPE_STRING:
+		string_release(vm, value->string);
+		break;
+
+	case VALUE_TYPE_ARRAY:
+		/*
+		 * This only happens when re-initializing the vars
+		 * to a pristine state, so there is no need to defer
+		 * free'ing the array data structures.
+		 */
+		for (d = 0; d < value->array->ndim; d++) {
+			for (e = 0; e < value->array->dims[d].nelem; e++) {
+				value_release_and_init(vm,
+				    &value->array->dims[d].elem[e],
+				    VALUE_TYPE_ANY);
+			}
+			free(value->array->dims[d].elem);
+		}
+		free(value->array->dims);
+		break;
+
+	default:
+		break;
+	}
+	if (type != VALUE_TYPE_ANY) {
+		/* Reset to the default value. */
+		value_init(vm, value, type);
+	}
+}
+
+static void
+value_release(tbvm *vm, struct value *value)
+{
+	value_release_and_init(vm, value, VALUE_TYPE_ANY);
 }
 
 static void
@@ -1018,7 +1086,7 @@ sbrstk_pop(tbvm *vm, var_ref var, struct subr *subrp, bool pop_match)
 /*********** Arithmetic Expression stack routines **********/
 
 static void
-aestk_push_value(tbvm *vm, const struct value *valp)
+aestk_push_value(tbvm *vm, struct value *valp)
 {
 	int slot;
 
@@ -1138,23 +1206,17 @@ aestk_pop_varref(tbvm *vm)
 
 /*********** Variable routines **********/
 
+
 static void
 var_init(tbvm *vm)
 {
-	struct value *val;
 	int i;
 
 	for (i = 0; i < SVAR_BASE; i++) {
-		val = &vm->vars[i];
-		value_release(vm, val);
-		val->type = VALUE_TYPE_NUMBER;
-		val->number = 0;
+		value_release_and_init(vm, &vm->vars[i], VALUE_TYPE_NUMBER);
 	}
 	for (; i < NUM_VARS; i++) {
-		val = &vm->vars[i];
-		value_release(vm, val);
-		val->type = VALUE_TYPE_STRING;
-		val->string = &empty_string;
+		value_release_and_init(vm, &vm->vars[i], VALUE_TYPE_STRING);
 	}
 	string_gc(vm);
 }
@@ -1221,7 +1283,7 @@ var_get_value(tbvm *vm, var_ref var, struct value *valp)
 }
 
 static void
-var_set_value(tbvm *vm, var_ref var, const struct value *valp)
+var_set_value(tbvm *vm, var_ref var, struct value *valp)
 {
 	if (valp->type != var->type) {
 		basic_wrong_type_error(vm);
