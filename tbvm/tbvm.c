@@ -122,6 +122,12 @@ struct array {
 	struct value elem[];
 };
 
+static inline size_t
+array_size(int nelem)
+{
+	return sizeof(struct array) + sizeof(struct value) * nelem;
+}
+
 struct tbvm {
 	jmp_buf		vm_abort_env;
 	jmp_buf		basic_error_env;
@@ -689,6 +695,12 @@ basic_out_of_data_error(tbvm *vm)
 	basic_error(vm, "OUT OF DATA");
 }
 
+static void DOES_NOT_RETURN
+basic_subscript_error(tbvm *vm)
+{
+	basic_error(vm, "BAD SUBSCRIPT");
+}
+
 /*********** Abstract number math routines **********/
 
 #ifdef TBVM_CONFIG_INTEGER_ONLY
@@ -880,6 +892,10 @@ value_init(tbvm *vm, var_ref slot, int type)
 		slot->string = &empty_string;
 		break;
 
+	case VALUE_TYPE_ARRAY:
+		slot->array = NULL;
+		break;
+
 	default:
 		vm_abort(vm, "!INVALID VALUE INIT");
 	}
@@ -901,16 +917,18 @@ value_release_and_init(tbvm *vm, struct value *value, int type)
 		 * to a pristine state, so there is no need to defer
 		 * free'ing the array data structures.
 		 */
-		for (i = 0; i < value->array->nelem; i++) {
-			/*
-			 * XXX Recursion could be bad for arrays
-			 * XXX with lots of dimensions.
-			 */
-			value_release_and_init(vm, &value->array->elem[i],
-			    VALUE_TYPE_ANY);
+		if (value->array != NULL) {
+			for (i = 0; i < value->array->nelem; i++) {
+				/*
+				 * XXX Recursion could be bad for arrays
+				 * XXX with lots of dimensions.
+				 */
+				value_release_and_init(vm,
+				    &value->array->elem[i], VALUE_TYPE_ANY);
+			}
+			free(value->array);
+			value->array = NULL;
 		}
-		free(value->array);
-		value->array = NULL;
 		break;
 
 	default:
@@ -1238,6 +1256,36 @@ var_make_ref(tbvm *vm, int type, int idx)
 		vm_abort(vm, "!INVALID VARIABLE TYPE");
 	}
 	return &vm->vars[idx];
+}
+
+static var_ref
+var_index_array(tbvm *vm, var_ref var, int idx)
+{
+	if (var->type != VALUE_TYPE_ARRAY || var->array == NULL ||
+	    idx < 0 || idx >= var->array->nelem) {
+		basic_subscript_error(vm);
+	}
+	return &var->array->elem[idx];
+}
+
+static void
+var_make_array(tbvm *vm, var_ref var, int nelem, int type)
+{
+	struct array *array;
+	int i;
+
+	if (nelem < 1) {
+		basic_illegal_quantity_error(vm);
+	}
+
+	array = malloc(array_size(nelem));
+	for (i = 0; i < nelem; i++) {
+		value_init(vm, &array->elem[i], type);
+	}
+
+	value_release(vm, var);
+	var->type = VALUE_TYPE_ARRAY;
+	var->array = array;
 }
 
 static int
