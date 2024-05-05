@@ -1975,16 +1975,13 @@ IMPL(NXTLN)
  */
 IMPL(XFER)
 {
-	tbvm_number val = aestk_pop_number(vm);
+	int lineno = aestk_pop_integer(vm);
 
 	/* Don't let this put us in direct mode. */
-	if (val == 0) {
+	if (lineno == 0) {
 		basic_line_number_error(vm);
 	}
-	if (! integer_p(vm, val)) {
-		basic_illegal_quantity_error(vm);
-	}
-	set_line(vm, (int)val, 0, false);
+	set_line(vm, lineno, 0, false);
 }
 
 /*
