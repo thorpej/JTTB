@@ -3645,6 +3645,21 @@ static opc_impl_func_t opc_impls[OPC___COUNT] = {
 
 /*********** Interface routines **********/
 
+const char tbvm_name_string[] = "Jason's Tiny-ish BASIC";
+const char tbvm_version_string[] = "0.3";
+
+const char *
+tbvm_name(void)
+{
+	return tbvm_name_string;
+}
+
+const char *
+tbvm_version(void)
+{
+	return tbvm_version_string;
+}
+
 tbvm
 *tbvm_alloc(void *context)
 {

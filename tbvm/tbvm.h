@@ -36,6 +36,9 @@
 struct tbvm;
 typedef struct tbvm tbvm;
 
+const char *tbvm_name(void);
+const char *tbvm_version(void);
+
 tbvm	*tbvm_alloc(void *);
 void	tbvm_exec(tbvm *);
 void	tbvm_free(tbvm *);

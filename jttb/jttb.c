@@ -37,8 +37,6 @@
 
 #include "../tbvm/tbvm.h"
 
-const char version[] = "0.3";
-
 static tbvm	*vm;
 
 static void
@@ -142,7 +140,7 @@ static const struct tbvm_time_io jttb_time_io = {
 int
 main(int argc, char *argv[])
 {
-	printf("Jason's Tiny-ish BASIC, version %s\n", version);
+	printf("%s, version %s\n", tbvm_name(), tbvm_version());
 
 	signal(SIGINT, sigint_handler);
 
