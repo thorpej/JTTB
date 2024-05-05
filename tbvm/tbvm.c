@@ -100,16 +100,6 @@ typedef struct string {
 	int lineno;
 } string;
 
-struct array_dimension {
-	int nelem;
-	struct value *elem;
-};
-
-struct array {
-	int ndim;
-	struct array_dimension *dims;
-};
-
 struct value {
 	int type;
 	union {
@@ -126,6 +116,11 @@ struct value {
 #define	VALUE_TYPE_STRING	3	/* string field */
 #define	VALUE_TYPE_ARRAY	9	/* dimensioned array */
 #define	VALUE_TYPE_VARREF	10	/* var_ref field */
+
+struct array {
+	int nelem;
+	struct value elem[];
+};
 
 struct tbvm {
 	jmp_buf		vm_abort_env;
@@ -893,7 +888,7 @@ value_init(tbvm *vm, var_ref slot, int type)
 static void
 value_release_and_init(tbvm *vm, struct value *value, int type)
 {
-	int d, e;
+	int i;
 
 	switch (value->type) {
 	case VALUE_TYPE_STRING:
@@ -906,15 +901,16 @@ value_release_and_init(tbvm *vm, struct value *value, int type)
 		 * to a pristine state, so there is no need to defer
 		 * free'ing the array data structures.
 		 */
-		for (d = 0; d < value->array->ndim; d++) {
-			for (e = 0; e < value->array->dims[d].nelem; e++) {
-				value_release_and_init(vm,
-				    &value->array->dims[d].elem[e],
-				    VALUE_TYPE_ANY);
-			}
-			free(value->array->dims[d].elem);
+		for (i = 0; i < value->array->nelem; i++) {
+			/*
+			 * XXX Recursion could be bad for arrays
+			 * XXX with lots of dimensions.
+			 */
+			value_release_and_init(vm, &value->array->elem[i],
+			    VALUE_TYPE_ANY);
 		}
-		free(value->array->dims);
+		free(value->array);
+		value->array = NULL;
 		break;
 
 	default:
