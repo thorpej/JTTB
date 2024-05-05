@@ -37,7 +37,7 @@
 
 #include "../tbvm/tbvm.h"
 
-const char version[] = "0.2";
+const char version[] = "0.3";
 
 static tbvm	*vm;
 
