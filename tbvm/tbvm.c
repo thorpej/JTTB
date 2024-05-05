@@ -79,8 +79,10 @@ typedef	int		tbvm_number;
 typedef	double		tbvm_number;
 #endif
 
+typedef struct value	*var_ref;
+
 struct subr {
-	int var;
+	var_ref var;
 	int lineno;
 	int lbuf_ptr;
 	tbvm_number start_val;
@@ -88,7 +90,7 @@ struct subr {
 	tbvm_number step;
 };
 
-#define	SUBR_VAR_SUBROUTINE	-1
+#define	SUBR_VAR_SUBROUTINE	((var_ref)-1)
 
 typedef struct string {
 	unsigned int refs;
@@ -104,13 +106,14 @@ struct value {
 		int		integer;
 		tbvm_number	number;
 		string *	string;
+		var_ref		var_ref;
 	};
 };
 #define	VALUE_TYPE_ANY		0
-#define	VALUE_TYPE_INTEGER	1
-#define	VALUE_TYPE_NUMBER	2
-#define	VALUE_TYPE_STRING	3
-#define	VALUE_TYPE_VARREF	10
+#define	VALUE_TYPE_INTEGER	1	/* integer field */
+#define	VALUE_TYPE_NUMBER	2	/* number field */
+#define	VALUE_TYPE_STRING	3	/* string field */
+#define	VALUE_TYPE_VARREF	10	/* var_ref field */
 
 struct tbvm {
 	jmp_buf		vm_abort_env;
@@ -820,14 +823,12 @@ integer_p(tbvm *vm, tbvm_number val)
 }
 
 static bool
-value_valid_p(const struct value *value)
+value_valid_p(tbvm *vm, const struct value *value)
 {
 	bool rv = true;
 
 	switch (value->type) {
 	case VALUE_TYPE_INTEGER:
-		break;
-
 	case VALUE_TYPE_NUMBER:
 		break;
 
@@ -836,7 +837,8 @@ value_valid_p(const struct value *value)
 		break;
 
 	case VALUE_TYPE_VARREF:
-		rv = (value->integer >= 0 && value->integer <= NUM_VARS);
+		rv = (value->var_ref >= &vm->vars[0] &&
+		      value->var_ref < &vm->vars[NUM_VARS]);
 		break;
 
 	default:
@@ -996,7 +998,7 @@ sbrstk_peek_top(tbvm *vm)
 }
 
 static bool
-sbrstk_pop(tbvm *vm, int var, struct subr *subrp, bool pop_match)
+sbrstk_pop(tbvm *vm, var_ref var, struct subr *subrp, bool pop_match)
 {
 	int slot;
 
@@ -1020,7 +1022,7 @@ aestk_push_value(tbvm *vm, const struct value *valp)
 {
 	int slot;
 
-	if (! value_valid_p(valp)) {
+	if (! value_valid_p(vm, valp)) {
 		vm_abort(vm, "!PUSHING INVALID VALUE");
 	}
 
@@ -1116,22 +1118,22 @@ aestk_pop_string(tbvm *vm)
 }
 
 static void
-aestk_push_varref(tbvm *vm, int var)
+aestk_push_varref(tbvm *vm, var_ref var)
 {
 	struct value value = {
 		.type = VALUE_TYPE_VARREF,
-		.integer = var,
+		.var_ref = var,
 	};
 	aestk_push_value(vm, &value);
 }
 
-static int
+static var_ref
 aestk_pop_varref(tbvm *vm)
 {
 	struct value value;
 
 	aestk_pop_value(vm, VALUE_TYPE_VARREF, &value);
-	return value.integer;
+	return value.var_ref;
 }
 
 /*********** Variable routines **********/
@@ -1157,61 +1159,76 @@ var_init(tbvm *vm)
 	string_gc(vm);
 }
 
-static struct value *
-var_slot(tbvm *vm, int idx)
+static var_ref
+var_make_ref(tbvm *vm, int type, int idx)
 {
-	if (idx < 0 || idx >= NUM_VARS) {
-		vm_abort(vm, "!INVALID VARIABLE INDEX");
+	switch (type) {
+	case VALUE_TYPE_NUMBER:
+		if (idx < 0 || idx >= NUM_NVARS) {
+			vm_abort(vm, "!INVALID NUMBER VAR INDEX");
+		}
+		break;
+
+	case VALUE_TYPE_STRING:
+		if (idx < 0 || idx >= NUM_SVARS) {
+			vm_abort(vm, "!INVALID STRING VAR INDEX");
+		}
+		idx += SVAR_BASE;
+		break;
+
+	default:
+		vm_abort(vm, "!INVALID VARIABLE TYPE");
 	}
 	return &vm->vars[idx];
 }
 
-static tbvm_number
-var_get_number(tbvm *vm, int idx)
+static int
+var_type(tbvm *vm, var_ref var)
 {
-	struct value *slot = var_slot(vm, idx);
-	if (idx >= SVAR_BASE) {
-		vm_abort(vm, "!BAD VAR INDEX");
-	}
-	if (slot->type != VALUE_TYPE_NUMBER) {
+	return var->type;
+}
+
+static tbvm_number
+var_get_number(tbvm *vm, var_ref var)
+{
+	if (var->type != VALUE_TYPE_NUMBER) {
 		return 0;
 	}
-	return slot->number;
-}
-
-static int
-var_set_number(tbvm *vm, int idx, tbvm_number val)
-{
-	struct value *slot = var_slot(vm, idx);
-	if (idx >= SVAR_BASE) {
-		vm_abort(vm, "!BAD VAR INDEX");
-	}
-	slot->type = VALUE_TYPE_NUMBER;
-	return (slot->number = val);
+	return var->number;
 }
 
 static void
-var_get_value(tbvm *vm, int idx, struct value *valp)
+var_set_number(tbvm *vm, var_ref var, tbvm_number val)
 {
-	struct value *slot = var_slot(vm, idx);
-	if (slot->type != VALUE_TYPE_NUMBER &&
-	    slot->type != VALUE_TYPE_STRING) {
-		vm_abort(vm, "!UNINITIALIZED VARIABLE");
-	}
-	*valp = *slot;
-}
-
-static void
-var_set_value(tbvm *vm, int idx, const struct value *valp)
-{
-	struct value *slot = var_slot(vm, idx);
-
-	if (valp->type != slot->type) {
+	if (var->type != VALUE_TYPE_NUMBER) {
 		basic_wrong_type_error(vm);
 	}
-	value_release(vm, slot);
+	var->number = val;
+}
+
+static void
+var_get_value(tbvm *vm, var_ref var, struct value *valp)
+{
+	switch (var->type) {
+	case VALUE_TYPE_NUMBER:
+	case VALUE_TYPE_STRING:
+		break;
+
+	default:
+		vm_abort(vm, "!UNINITIALIZED VARIABLE");
+	}
+	*valp = *var;
+}
+
+static void
+var_set_value(tbvm *vm, var_ref var, const struct value *valp)
+{
+	if (valp->type != var->type) {
+		basic_wrong_type_error(vm);
+	}
+	value_release(vm, var);
 	value_retain(vm, valp);
-	*slot = *valp;
+	*var = *valp;
 }
 
 /*********** Default I/O routines **********/
@@ -2272,9 +2289,8 @@ IMPL(INVAR)
 {
 	struct value value;
 	char * const startc = vm->tmp_buf;
-	int var = aestk_pop_varref(vm);
+	var_ref var = aestk_pop_varref(vm);
 	int pcount = aestk_pop_integer(vm);
-	int string_p = var >= SVAR_BASE;
 	int ch, ptr;
 
  get_input:
@@ -2302,7 +2318,7 @@ IMPL(INVAR)
 		startc[ptr++] = (char)ch;
 	}
 
-	if (string_p) {
+	if (var_type(vm, var) == VALUE_TYPE_STRING) {
 		if (! get_input_string(vm, startc, &value.string)) {
 			input_needs_redo(vm);
 			goto get_input;
@@ -2468,7 +2484,7 @@ IMPL(MOD)
 IMPL(STORE)
 {
 	struct value value;
-	int var;
+	var_ref var;
 
 	aestk_pop_value(vm, VALUE_TYPE_ANY, &value);
 	var = aestk_pop_varref(vm);
@@ -2483,7 +2499,7 @@ IMPL(STORE)
  */
 IMPL(DSTORE)
 {
-	int var = aestk_pop_varref(vm);
+	var_ref var = aestk_pop_varref(vm);
 	char *cp0, *cp1;
 	unsigned dquotes = 0;
 
@@ -2550,7 +2566,7 @@ IMPL(DSTORE)
 	string *string = string_alloc(vm, cp0, cp1 - cp0, vm->lineno);
 
 	/* If we're storing into a numeric var, convert to a number. */
-	if (var < SVAR_BASE) {
+	if (var_type(vm, var) == VALUE_TYPE_NUMBER) {
 		/* XXX Code dupliacated with VAL(). */
 		string = string_terminate(vm, string);
 		tbvm_number val;
@@ -2590,20 +2606,21 @@ IMPL(DSTORE)
 IMPL(TSTV)
 {
 	int label = get_label(vm);
-	int var;
+	int type = VALUE_TYPE_NUMBER;
+	int idx;
 	char c;
 
 	skip_whitespace(vm);
 	c = peek_linebyte(vm, 0);
 	if (c >= 'A' && c <= 'Z') {
 		advance_cursor(vm, 1);
-		var = c - 'A';
+		idx = c - 'A';
 		c = peek_linebyte(vm, 0);
 		if (c == '$') {
 			advance_cursor(vm, 1);
-			var += SVAR_BASE;
+			type = VALUE_TYPE_STRING;
 		}
-		aestk_push_varref(vm, var);
+		aestk_push_varref(vm, var_make_ref(vm, type, idx));
 	} else {
 		vm->pc = label;
 	}
@@ -2701,10 +2718,9 @@ IMPL(TSTN)
  */
 IMPL(IND)
 {
-	int var = aestk_pop_varref(vm);
 	struct value value;
 
-	var_get_value(vm, var, &value);
+	var_get_value(vm, aestk_pop_varref(vm), &value);
 	aestk_push_value(vm, &value);
 }
 
@@ -2955,7 +2971,7 @@ IMPL(STEP)
  */
 IMPL(NXTFOR)
 {
-	int var = aestk_pop_varref(vm);
+	var_ref var = aestk_pop_varref(vm);
 	struct subr subr;
 	tbvm_number newval;
 	bool done = false;
