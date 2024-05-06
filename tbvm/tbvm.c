@@ -3909,9 +3909,8 @@ IMPL(ARRY)
 }
 
 /*
- * Construct and return a string that advances the console cursor to the
- * specified column (0-referenced).  If the console cursor is already at
- * or beyond the specified column, it is not moved.
+ * Advance the console cursor to the specified column (0-referenced).  If
+ * the cursor is already at or beyond the specified column, it is not moved.
  */
 IMPL(TAB)
 {
@@ -3921,12 +3920,12 @@ IMPL(TAB)
 		basic_illegal_quantity_error(vm);
 	}
 
-	int count = col > vm->cons_column ? col - vm->cons_column : 0;
-	string *string = string_alloc(vm, NULL, count, 0);
-	for (int i = 0; i < count; i++) {
-		string->str[i] = ' ';
+	while (vm->cons_column < col) {
+		vm_cons_putchar(vm, ' ');
 	}
-	aestk_push_string(vm, string);
+
+	/* Just return an empty string so PRINT doesn't croak. */
+	aestk_push_string(vm, string_alloc(vm, NULL, 0, 0));
 }
 
 #undef IMPL
