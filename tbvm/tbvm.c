@@ -3061,6 +3061,9 @@ IMPL(XINIT)
  */
 IMPL(RUN)
 {
+	var_init(vm);
+	reset_stacks(vm);
+
 	vm->direct = false;
 	vm->lineno = 0;
 	vm->data_lineno = 0;
