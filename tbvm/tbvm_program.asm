@@ -134,6 +134,8 @@
 ; ==> Added support for dimensioned arrays using new DIM and ARRY VM
 ;     insns.
 ;
+; ==> Added support for the TAB() function using the new TAB VM insn.
+;
 ; Original Tiny BASIC VM opcodes that are no longer used:
 ; ==> CMPR (replaced by CMPRX)
 ; ==> LST (replaced by LSTX)
@@ -614,6 +616,7 @@ Serr:	ERR			; Syntax error.
 ;              EXP ( expression )
 ;              LOG ( expression )
 ;              SQR ( expression )
+;              TAB ( expression )
 ;              CHR$ ( expression )
 ;              STR$ ( expression )
 ;              HEX$ ( expression )
@@ -782,6 +785,18 @@ notLOG:
 	SQR
 	RTN
 notSQR:
+
+	; It blows my mind that, despite returning a string,
+	; MS BASIC did not call this function TAB$().  Then
+	; again, MS BASIC does not allow the return value from
+	; this function to be assigned to a string variable.
+	; It seems to be only valid within the context of a
+	; PRINT statement in classical MS BASIC.
+	TST	notTAB,'TAB'	; TAB() function?
+	CALL	FUNC1ARG
+	TAB
+	RTN
+notTAB:
 
 	TST	notCHR,'CHR$'	; CHR$() function?
 	CALL	FUNC1ARG

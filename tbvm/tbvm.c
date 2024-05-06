@@ -3908,6 +3908,27 @@ IMPL(ARRY)
 	vm_abort(vm, "!BAD ARRAY INDEX");
 }
 
+/*
+ * Construct and return a string that advances the console cursor to the
+ * specified column (0-referenced).  If the console cursor is already at
+ * or beyond the specified column, it is not moved.
+ */
+IMPL(TAB)
+{
+	int col = aestk_pop_integer(vm);
+
+	if (col < 0) {
+		basic_illegal_quantity_error(vm);
+	}
+
+	int count = col > vm->cons_column ? col - vm->cons_column : 0;
+	string *string = string_alloc(vm, NULL, count, 0);
+	for (int i = 0; i < count; i++) {
+		string->str[i] = ' ';
+	}
+	aestk_push_string(vm, string);
+}
+
 #undef IMPL
 
 #define	OPC(x)	[OPC_ ## x] = OPC_ ## x ## _impl
@@ -3996,6 +4017,7 @@ static opc_impl_func_t opc_impls[OPC___COUNT] = {
 	OPC(DSTORE),
 	OPC(DIM),
 	OPC(ARRY),
+	OPC(TAB),
 };
 
 #undef OPC
