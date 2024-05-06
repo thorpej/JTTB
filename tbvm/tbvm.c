@@ -165,6 +165,7 @@ struct tbvm {
 	const struct tbvm_file_io *file_io;
 	void		*cons_file;
 	void		*prog_file;
+	string		*prog_file_name;
 
 	unsigned int	cons_column;
 
@@ -1452,6 +1453,11 @@ progstore_init(tbvm *vm)
 		}
 	}
 	vm->first_line = vm->last_line = 0;
+
+	if (vm->prog_file_name != NULL) {
+		string_release(vm, vm->prog_file_name);
+		vm->prog_file_name = NULL;
+	}
 }
 
 static char *
@@ -2945,6 +2951,39 @@ IMPL(INSRT)
 	vm->suppress_prompt = true;
 }
 
+static string *
+get_prog_filename(tbvm *vm)
+{
+	struct value value;
+	string *filename = NULL;
+
+	aestk_pop_value(vm, VALUE_TYPE_ANY, &value);
+	switch (value.type) {
+	case VALUE_TYPE_INTEGER:
+		if (value.integer == 0 && vm->prog_file_name != NULL) {
+			filename = vm->prog_file_name;
+			string_release(vm, vm->prog_file_name);
+			vm->prog_file_name = NULL;
+		}
+		break;
+
+	case VALUE_TYPE_STRING:
+		filename = value.string;
+		break;
+
+	default:
+		break;
+	}
+
+	if (filename != NULL) {
+		filename = string_terminate(vm, filename);
+		string_retain(vm, filename);
+		vm->prog_file_name = filename;
+	}
+
+	return filename;
+}
+
 /*
  * Load a program into the program store.  This is accomplished
  * by opening the program file, setting it as the console file,
@@ -2954,9 +2993,12 @@ IMPL(INSRT)
  */
 IMPL(LDPRG)
 {
-	string *filename = string_terminate(vm, aestk_pop_string(vm));
+	string *filename = get_prog_filename(vm);
 
-	vm->prog_file = vm_io_openfile(vm, filename->str, "I");
+	if (filename != NULL) {
+		vm->prog_file = vm_io_openfile(vm, filename->str, "I");
+	}
+
 	if (vm->prog_file == NULL) {
 		basic_file_not_found_error(vm);
 	}
@@ -2964,6 +3006,10 @@ IMPL(LDPRG)
 	progstore_init(vm);
 	var_init(vm);
 	reset_stacks(vm);
+
+	/* Preserve loaded file name. */
+	string_retain(vm, filename);
+	vm->prog_file_name = filename;
 
 	vm->cons_file = vm->prog_file;
 	vm->pc = vm->collector_pc;
@@ -2978,8 +3024,12 @@ IMPL(LDPRG)
  */
 IMPL(SVPRG)
 {
-	string *filename = string_terminate(vm, aestk_pop_string(vm));
-	void *file = vm_io_openfile(vm, filename->str, "O");
+	string *filename = get_prog_filename(vm);
+	void *file = NULL;
+
+	if (filename != NULL) {
+		file = vm_io_openfile(vm, filename->str, "O");
+	}
 
 	if (file == NULL) {
 		basic_file_not_found_error(vm);

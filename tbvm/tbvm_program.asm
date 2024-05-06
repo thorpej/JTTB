@@ -517,8 +517,10 @@ notDIM:
 	; LOAD "characterstring"
 	;
 	TST	notLOAD,'LOAD'	; LOAD command?
-	TSTS	Serr		; Push file name onto AESTK.
-	DONEM	1		; End of statement (DIRECT-mode).
+	TSTS	LD1		; Push file name onto AESTK.
+	JMP	LD2
+LD1:	LIT	0		; 0 -> no program name
+LD2:	DONEM	1		; End of statement (DIRECT-mode).
 	LDPRG			; Go load the program. Returns to direct mode.
 notLOAD:
 
@@ -526,8 +528,10 @@ notLOAD:
 	; SAVE "characterstring"
 	;
 	TST	notSAVE,'SAVE'	; SAVE command?
-	TSTS	Serr		; Push file name onto AESTK.
-	DONEM	1		; End of statement (DIRECT-mode).
+	TSTS	SV1		; Push file name onto AESTK.
+	JMP	SV2
+SV1:	LIT	0		; 0 -> no program name
+SV2:	DONEM	1		; End of statement (DIRECT-mode).
 	SVPRG			; Go save the program. Returns to direct mode.
 notSAVE:
 
