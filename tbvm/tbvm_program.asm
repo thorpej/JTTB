@@ -134,7 +134,8 @@
 ; ==> Added support for dimensioned arrays using new DIM and ARRY VM
 ;     insns.
 ;
-; ==> Added support for the TAB() function using the new TAB VM insn.
+; ==> Added support for the TAB() and SPC() functions using the new
+;     ADVCRS VM insn.
 ;
 ; Original Tiny BASIC VM opcodes that are no longer used:
 ; ==> CMPR (replaced by CMPRX)
@@ -616,6 +617,7 @@ Serr:	ERR			; Syntax error.
 ;              EXP ( expression )
 ;              LOG ( expression )
 ;              SQR ( expression )
+;              SPC ( expression )
 ;              TAB ( expression )
 ;              CHR$ ( expression )
 ;              STR$ ( expression )
@@ -786,15 +788,23 @@ notLOG:
 	RTN
 notSQR:
 
-	; It blows my mind that, despite returning a string,
-	; MS BASIC did not call this function TAB$().  Then
-	; again, MS BASIC does not allow the return value from
-	; this function to be assigned to a string variable.
-	; It seems to be only valid within the context of a
-	; PRINT statement in classical MS BASIC.
+	;
+	; Classical MS BASIC does not process SPC() and TAB() like
+	; normal functions, but rather looks for them inline with
+	; PRINT processing.  We treat them like normal functions,
+	; and they simply return an empty string after doing their
+	; work.
+	;
+
+	TST	notSPC,'SPC'	; SPC() function?
+	CALL	FUNC1ARG
+	ADVCRS	0
+	RTN
+notSPC:
+
 	TST	notTAB,'TAB'	; TAB() function?
 	CALL	FUNC1ARG
-	TAB
+	ADVCRS	1
 	RTN
 notTAB:
 

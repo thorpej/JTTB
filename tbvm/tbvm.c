@@ -3909,18 +3909,28 @@ IMPL(ARRY)
 }
 
 /*
- * Advance the console cursor to the specified column (0-referenced).  If
- * the cursor is already at or beyond the specified column, it is not moved.
+ * Advance the cursor.  There are two modes:
+ *
+ * 0 - Advance the console cursor the specified number of columns.
+ *
+ * 1 - Advance the console cursor to the specified column (0-referenced).
+ *     If the cursor is already at or beyond the specified column, it is
+ *     not moved.
  */
-IMPL(TAB)
+IMPL(ADVCRS)
 {
-	int col = aestk_pop_integer(vm);
+	int mode = get_literal(vm);
+	int val = aestk_pop_integer(vm);
 
-	if (col < 0) {
+	if (val < 0) {
 		basic_illegal_quantity_error(vm);
 	}
 
-	while (vm->cons_column < col) {
+	if (mode == 1) {
+		val = val > vm->cons_column ? val - vm->cons_column : 0;
+	}
+
+	while (val--) {
 		vm_cons_putchar(vm, ' ');
 	}
 
@@ -4016,7 +4026,7 @@ static opc_impl_func_t opc_impls[OPC___COUNT] = {
 	OPC(DSTORE),
 	OPC(DIM),
 	OPC(ARRY),
-	OPC(TAB),
+	OPC(ADVCRS),
 };
 
 #undef OPC

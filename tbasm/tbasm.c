@@ -180,7 +180,7 @@ const struct opcode opcode_tab[] = {
 	{ "DSTORE",	OPC_DSTORE,	0 },
 	{ "DIM",	OPC_DIM,	0 },
 	{ "ARRY",	OPC_ARRY,	0 },
-	{ "TAB",	OPC_TAB,	0 },
+	{ "ADVCRS",	OPC_ADVCRS,	OPC_F_NUMBER },
 
 	{ NULL,		0,		0 },
 };

@@ -119,9 +119,9 @@
 #define	OPC_DSTORE	78
 #define	OPC_DIM		79
 #define	OPC_ARRY	80
-#define	OPC_TAB		81
+#define	OPC_ADVCRS	81
 
-#define	OPC___LAST	OPC_TAB
+#define	OPC___LAST	OPC_ADVCRS
 #define	OPC___COUNT	(OPC___LAST + 1)
 
 #define	OPC_F_LABEL	0x01
