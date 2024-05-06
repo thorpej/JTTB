@@ -167,9 +167,8 @@ STMT:	XINIT			; Initialize for a statement.
 	; LET var = expression
 	;
 	TST	notLET,'LET'	; LET statement?
-	TSTV	Serr		; Yes, place VAR on AESTK
-isLET:	CALL	ARRAY		; Maybe index array.
-	TST	Serr,'='
+	CALL	ReqVarOrArray
+isLET:	TST	Serr,'='
 	CALL	EXPR		; Place expression value on AESTK
 	DONE			; End of statement.
 	STORE			; Store result in VAR.
@@ -314,8 +313,7 @@ notIF:
 	;             STEP expression
 	;
 	TST	notFOR,'FOR'	; FOR statement?
-	TSTV	Serr		; Yes, get var address.
-	CALL	ARRAY		; Maybe index array.
+	CALL	ReqVarOrArray
 	TST	Serr,'='
 	CALL	EXPR		; Get first expression.
 	TST	Serr,'TO'
@@ -333,8 +331,7 @@ notFOR:
 	; NEXT var
 	;
 	TST	notNEXT,'NEXT'	; NEXT statement?
-	TSTV	Serr		; Yes, get var address.
-	CALL	ARRAY		; Maybe index array.
+	CALL	ReqVarOrArray
 	DONEM	0		; End of statement (RUN-mode).
 	NXTFOR			; Next statement according to loop cond.
 notNEXT:
@@ -352,8 +349,7 @@ notNEXT:
 	PRS			; Yes, print it.
 	TST	Serr,';'	; Require ; separator between string and var.
 IN1:	LIT	1		; Start with 1 input prompt char.
-IN2:	TSTV	Serr		; Get var address.
-	CALL	ARRAY		; Maybe index array.
+IN2:	CALL	ReqVarOrArray
 	INVAR			; Get value from terminal and store it.
 	TST	IN3,','		; More?
 	LIT	1		; Yes, add 1 to the prompt count.
@@ -393,8 +389,7 @@ notREM:
 	; var-list::= var (, var)*
 	;
 	TST	notREAD,'READ'	; READ statement?
-RD1:	TSTV	Serr
-	CALL	ARRAY		; Maybe index array.
+RD1:	CALL	ReqVarOrArray
 	DMODE	1		; Goto into DATA mode.
 	TSTSOL	RD3		; At start-of-line?
 RD2:	TST	RDnxt,'DATA'	; Yes, DATA statement?
@@ -570,8 +565,7 @@ notSRND:
 	; This is to match the extremely-common-among-BASICs behavior
 	; of allowing variable assignments without LET.
 	;
-	TSTV	Serr		; Check for a variable.
-	CALL	ARRAY		; Maybe index array.
+	CALL	ReqVarOrArray	; Check for a var or array.
 	JMP	isLET		; ...and try to match an assignment.
 
 Serr:	ERR			; Syntax error.
@@ -904,6 +898,11 @@ R5:	TST	R6,'<'
 R6:	LIT	4		; > GREATER-THAN
 	RTN
 
+ReqVarOrArray:
+	TSTV	Serr		; Var required, error if not present.
+	;
+	; Fall-through to check for an array.
+	;
 ;
 ; *** Check for array index
 ;
