@@ -131,6 +131,9 @@
 ; ==> Added DATA, READ, and RESTORE statements using new TSTSOL, NXTLN,
 ;     DMODE, and DSTORE VM insns.
 ;
+; ==> Added support for dimensioned arrays using new DIM and ARRY VM
+;     insns.
+;
 ; Original Tiny BASIC VM opcodes that are no longer used:
 ; ==> CMPR (replaced by CMPRX)
 ; ==> LST (replaced by LSTX)
@@ -165,7 +168,8 @@ STMT:	XINIT			; Initialize for a statement.
 	;
 	TST	notLET,'LET'	; LET statement?
 	TSTV	Serr		; Yes, place VAR on AESTK
-isLET:	TST	Serr,'='
+isLET:	CALL	ARRAY		; Maybe index array.
+	TST	Serr,'='
 	CALL	EXPR		; Place expression value on AESTK
 	DONE			; End of statement.
 	STORE			; Store result in VAR.
@@ -311,6 +315,7 @@ notIF:
 	;
 	TST	notFOR,'FOR'	; FOR statement?
 	TSTV	Serr		; Yes, get var address.
+	CALL	ARRAY		; Maybe index array.
 	TST	Serr,'='
 	CALL	EXPR		; Get first expression.
 	TST	Serr,'TO'
@@ -329,6 +334,7 @@ notFOR:
 	;
 	TST	notNEXT,'NEXT'	; NEXT statement?
 	TSTV	Serr		; Yes, get var address.
+	CALL	ARRAY		; Maybe index array.
 	DONEM	0		; End of statement (RUN-mode).
 	NXTFOR			; Next statement according to loop cond.
 notNEXT:
@@ -347,6 +353,7 @@ notNEXT:
 	TST	Serr,';'	; Require ; separator between string and var.
 IN1:	LIT	1		; Start with 1 input prompt char.
 IN2:	TSTV	Serr		; Get var address.
+	CALL	ARRAY		; Maybe index array.
 	INVAR			; Get value from terminal and store it.
 	TST	IN3,','		; More?
 	LIT	1		; Yes, add 1 to the prompt count.
@@ -387,6 +394,7 @@ notREM:
 	;
 	TST	notREAD,'READ'	; READ statement?
 RD1:	TSTV	Serr
+	CALL	ARRAY		; Maybe index array.
 	DMODE	1		; Goto into DATA mode.
 	TSTSOL	RD3		; At start-of-line?
 RD2:	TST	RDnxt,'DATA'	; Yes, DATA statement?
@@ -493,6 +501,24 @@ CLR99:	DONEM	0		; End of statement (RUN-mode).
 notCLR:
 
 	;
+	; DIM var ( expression opt-dim )
+	;
+	; opt-dim ::=
+	;             , expression opt-dim
+	;
+	TST	notDIM,'DIM'	; DIM statement?
+	TSTV	Serr		; Get naming var.
+	TST	Serr,'('
+DIM1:	CALL	EXPR		; Get expression argument.
+	TST	DIM2,','	; Separator?
+	JMP	DIM1		; Get, get next expression argument.
+DIM2:	TST	Serr,')'
+	DONE			; End of statement.
+	DIM			; Dimension array associated with var.
+	NXT			; Next statement.
+notDIM:
+
+	;
 	; LOAD "characterstring"
 	;
 	TST	notLOAD,'LOAD'	; LOAD command?
@@ -545,6 +571,7 @@ notSRND:
 	; of allowing variable assignments without LET.
 	;
 	TSTV	Serr		; Check for a variable.
+	CALL	ARRAY		; Maybe index array.
 	JMP	isLET		; ...and try to match an assignment.
 
 Serr:	ERR			; Syntax error.
@@ -822,6 +849,7 @@ notLEFT:
 
 
 	TSTV	F0		; Variable?
+	CALL	ARRAY		; Maybe index array.
 	IND			; Yes, get the value.
 	RTN
 
@@ -875,3 +903,14 @@ R5:	TST	R6,'<'
 
 R6:	LIT	4		; > GREATER-THAN
 	RTN
+
+;
+; *** Check for array index
+;
+ARRAY:	TST	AR99,'('
+AR1:	CALL	EXPR		; Get expression.
+	TST	AR98,','	; Separator?
+	JMP	AR1		; Yes, get next expression.
+AR98:	TST	Serr,')'
+	ARRY			; Index the array.
+AR99:	RTN

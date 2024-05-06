@@ -107,25 +107,30 @@ struct value {
 		tbvm_number	number;
 		string *	string;
 		var_ref		var_ref;
-		struct array *	array;
 	};
 };
 #define	VALUE_TYPE_ANY		0
 #define	VALUE_TYPE_INTEGER	1	/* integer field */
 #define	VALUE_TYPE_NUMBER	2	/* number field */
 #define	VALUE_TYPE_STRING	3	/* string field */
-#define	VALUE_TYPE_ARRAY	9	/* dimensioned array */
 #define	VALUE_TYPE_VARREF	10	/* var_ref field */
 
-struct array {
-	int nelem;
-	struct value elem[];
+struct array_dim {
+	int	nelem;		/* number of elements in this dimension */
+	int	idxsize;	/* total index size of this dimension */
 };
 
-static inline size_t
-array_size(int nelem)
+struct array {
+	int ndim;		/* number of dimensions */
+	int totelem;		/* total number of elements */
+	struct value *elem;	/* the array elements themselves */
+	struct array_dim dims[];/* array dimension info */
+};
+
+static size_t
+array_size(int ndim)
 {
-	return sizeof(struct array) + sizeof(struct value) * nelem;
+	return sizeof(struct array) + sizeof(struct array_dim) * ndim;
 }
 
 struct tbvm {
@@ -168,6 +173,7 @@ struct tbvm {
 	unsigned int	rand_seed;
 
 	struct value	vars[NUM_VARS];
+	struct array	*array_vars[NUM_VARS];
 
 	char		direct_lbuf[SIZE_LBUF];
 	char		tmp_buf[SIZE_LBUF];
@@ -701,6 +707,18 @@ basic_subscript_error(tbvm *vm)
 	basic_error(vm, "BAD SUBSCRIPT");
 }
 
+static void DOES_NOT_RETURN
+basic_redim_error(tbvm *vm)
+{
+	basic_error(vm, "REDIM'D ARRAY");
+}
+
+static void DOES_NOT_RETURN
+basic_out_of_memory_error(tbvm *vm)
+{
+	basic_error(vm, "OUT OF MEMORY");
+}
+
 /*********** Abstract number math routines **********/
 
 #ifdef TBVM_CONFIG_INTEGER_ONLY
@@ -849,15 +867,11 @@ value_valid_p(tbvm *vm, const struct value *value)
 	switch (value->type) {
 	case VALUE_TYPE_INTEGER:
 	case VALUE_TYPE_NUMBER:
+	case VALUE_TYPE_VARREF:
 		break;
 
 	case VALUE_TYPE_STRING:
 		rv = (value->string != NULL);
-		break;
-
-	case VALUE_TYPE_VARREF:
-		rv = (value->var_ref >= &vm->vars[0] &&
-		      value->var_ref < &vm->vars[NUM_VARS]);
 		break;
 
 	default:
@@ -892,10 +906,6 @@ value_init(tbvm *vm, var_ref slot, int type)
 		slot->string = &empty_string;
 		break;
 
-	case VALUE_TYPE_ARRAY:
-		slot->array = NULL;
-		break;
-
 	default:
 		vm_abort(vm, "!INVALID VALUE INIT");
 	}
@@ -904,31 +914,9 @@ value_init(tbvm *vm, var_ref slot, int type)
 static void
 value_release_and_init(tbvm *vm, struct value *value, int type)
 {
-	int i;
-
 	switch (value->type) {
 	case VALUE_TYPE_STRING:
 		string_release(vm, value->string);
-		break;
-
-	case VALUE_TYPE_ARRAY:
-		/*
-		 * This only happens when re-initializing the vars
-		 * to a pristine state, so there is no need to defer
-		 * free'ing the array data structures.
-		 */
-		if (value->array != NULL) {
-			for (i = 0; i < value->array->nelem; i++) {
-				/*
-				 * XXX Recursion could be bad for arrays
-				 * XXX with lots of dimensions.
-				 */
-				value_release_and_init(vm,
-				    &value->array->elem[i], VALUE_TYPE_ANY);
-			}
-			free(value->array);
-			value->array = NULL;
-		}
 		break;
 
 	default:
@@ -1240,6 +1228,21 @@ aestk_pop_varref(tbvm *vm)
 
 /*********** Variable routines **********/
 
+static void
+var_release_array(tbvm *vm, int vidx)
+{
+	struct array *array;
+	int i;
+
+	if ((array = vm->array_vars[vidx]) != NULL) {
+		vm->array_vars[vidx] = NULL;
+		for (i = 0; i < array->totelem; i++) {
+			value_release(vm, &array->elem[i]);
+		}
+		free(array->elem);
+		free(array);
+	}
+}
 
 static void
 var_init(tbvm *vm)
@@ -1248,11 +1251,26 @@ var_init(tbvm *vm)
 
 	for (i = 0; i < SVAR_BASE; i++) {
 		value_release_and_init(vm, &vm->vars[i], VALUE_TYPE_NUMBER);
+		var_release_array(vm, i);
 	}
 	for (; i < NUM_VARS; i++) {
 		value_release_and_init(vm, &vm->vars[i], VALUE_TYPE_STRING);
+		var_release_array(vm, i);
 	}
 	string_gc(vm);
+}
+
+static int
+var_raw_index(tbvm *vm, var_ref var, int *typep)
+{
+	int idx;
+
+	if (var < &vm->vars[0] || var >= &vm->vars[NUM_VARS]) {
+		vm_abort(vm, "!BAD VAR ADDRESS");
+	}
+	idx = var - &vm->vars[0];
+	*typep = idx >= SVAR_BASE ? VALUE_TYPE_STRING : VALUE_TYPE_NUMBER;
+	return idx;
 }
 
 static var_ref
@@ -1276,36 +1294,6 @@ var_make_ref(tbvm *vm, int type, int idx)
 		vm_abort(vm, "!INVALID VARIABLE TYPE");
 	}
 	return &vm->vars[idx];
-}
-
-static var_ref
-var_index_array(tbvm *vm, var_ref var, int idx)
-{
-	if (var->type != VALUE_TYPE_ARRAY || var->array == NULL ||
-	    idx < 0 || idx >= var->array->nelem) {
-		basic_subscript_error(vm);
-	}
-	return &var->array->elem[idx];
-}
-
-static void
-var_make_array(tbvm *vm, var_ref var, int nelem, int type)
-{
-	struct array *array;
-	int i;
-
-	if (nelem < 1) {
-		basic_illegal_quantity_error(vm);
-	}
-
-	array = malloc(array_size(nelem));
-	for (i = 0; i < nelem; i++) {
-		value_init(vm, &array->elem[i], type);
-	}
-
-	value_release(vm, var);
-	var->type = VALUE_TYPE_ARRAY;
-	var->array = array;
 }
 
 static int
@@ -3676,6 +3664,197 @@ IMPL(DMODE)
 	}
 }
 
+static bool
+array_get_dimensions(tbvm *vm, int *ndimp, var_ref *varp)
+{
+	var_ref var;
+	struct value *valp;
+	int ndim;
+
+	/*
+	 * First we have to determine how many dimensions the resulting
+	 * array will have.  We do this by walking up the expression
+	 * stack and counting the NUMBER elements until we reach a
+	 * non-NUMBER.  When we reach a non-NUMBER, it must be the
+	 * variable that's indicates which array is to be dimensioned,
+	 * otherwise it's an error.
+	 *
+	 * N.B. The numbers indicate the maximum index, not the number
+	 * of elements at that array level.
+	 */
+	for (ndim = 0;; ndim++) {
+		valp = aestk_peek(vm, ndim);
+		if (valp == NULL) {
+			return false;
+		}
+		if (valp->type == VALUE_TYPE_NUMBER) {
+			if (number_to_int(vm, valp->number) < 0) {
+				basic_illegal_quantity_error(vm);
+			}
+			continue;
+		} else if (valp->type == VALUE_TYPE_VARREF) {
+			var = valp->var_ref;
+			break;
+		} else {
+			basic_wrong_type_error(vm);
+		}
+	}
+
+	/*
+	 * This shouldn't happen; the parser should flag a syntax
+	 * error first.
+	 */
+	if (ndim == 0) {
+		basic_subscript_error(vm);
+	}
+
+	*ndimp = ndim;
+	*varp = var;
+	return true;
+}
+
+static void
+alloc_array_elems(tbvm *vm, struct array *array, int totelem, int vtype)
+{
+	int dim, i, idxsize;
+
+	if (totelem <= 0) {
+		/* Integer overflow. */
+		goto oom;
+	}
+
+	/* Pre-compute the size of each dimension index. */
+	for (dim = array->ndim - 1, idxsize = 1; dim >= 0; dim--) {
+		array->dims[dim].idxsize = idxsize;
+		idxsize *= array->dims[dim].nelem;
+	}
+
+	array->totelem = totelem;
+	array->elem = calloc(totelem, sizeof(*array->elem));
+	for (i = 0; i < totelem; i++) {
+		value_release_and_init(vm, &array->elem[i], vtype);
+	}
+	return;
+
+ oom:
+	free(array);
+	basic_out_of_memory_error(vm);
+}
+
+/*
+ * Dimension an array variable.
+ */
+IMPL(DIM)
+{
+	var_ref var = NULL;
+	struct value *valp;
+	int i, dim, ndim, vidx, vtype, totelem;
+	struct array *array = NULL;
+
+	if (! array_get_dimensions(vm, &ndim, &var)) {
+		goto DIM_abort;
+	}
+
+	/*
+	 * Because arrays actually exist in a different namespace from
+	 * regular vars, we are only using the var_ref on the stack as
+	 * a name from which we compute the index into the array store.
+	 * Arrays are only allocated once DIM'd (including the MS BASIC-
+	 * style implicit DIM-on-first-use)
+	 *
+	 * N.B. var is guaranteed to be non-NULL here.
+	 */
+	vidx = var_raw_index(vm, var, &vtype);
+	if (vm->array_vars[vidx] != NULL) {
+		basic_redim_error(vm);
+	}
+
+	array = malloc(array_size(ndim));
+	array->ndim = ndim;
+
+	/* Compute the total number of value elements. */
+	for (totelem = 1, dim = 0, i = ndim - 1; i >= 0; i--, dim++) {
+		valp = aestk_peek(vm, i);
+		array->dims[dim].nelem = number_to_int(vm, valp->number) + 1;
+		totelem *= array->dims[dim].nelem;
+	}
+	alloc_array_elems(vm, array, totelem, vtype);
+	vm->array_vars[vidx] = array;
+
+	/* Now pop the arguments from the expression stack. */
+	aestk_popn(vm, ndim + 1);
+	return;
+
+ DIM_abort:
+	vm_abort(vm, "!BAD DIMENSION");
+}
+
+/*
+ * Index an array and push the resulting slot reference onto the
+ * expression stack.
+ */
+IMPL(ARRY)
+{
+	struct array *array;
+	struct value *valp;
+	var_ref var;
+	int i, dim, ndim, totelem, didx, idx, vidx, vtype;
+
+	if (! array_get_dimensions(vm, &ndim, &var)) {
+		goto ARRY_abort;
+	}
+
+	vidx = var_raw_index(vm, var, &vtype);
+	if ((array = vm->array_vars[vidx]) == NULL) {
+		/*
+		 * This is the first access of this array.  We'll
+		 * replicate classical MS BASIC behavior and implicitly
+		 * dimension an 11xN element array here.
+		 */
+		array = malloc(array_size(ndim));
+		array->ndim = ndim;
+
+		/* Compute the total number of value elements. */
+		for (totelem = 1, dim = 0; dim < ndim; dim++) {
+			array->dims[dim].nelem = 11;
+			totelem *= array->dims[dim].nelem;
+		}
+		alloc_array_elems(vm, array, totelem, vtype);
+		vm->array_vars[vidx] = array;
+	}
+
+	if (ndim != array->ndim) {
+		basic_subscript_error(vm);
+	}
+
+	/*
+	 * Calculate the offset to the final array element, checking
+	 * the dimension limits as we go.
+	 */
+	for (idx = 0, dim = 0, i = ndim - 1; i >= 0; i--, dim++) {
+		valp = aestk_peek(vm, i);
+		didx = number_to_int(vm, valp->number);
+		if (didx >= array->dims[dim].nelem) {
+			basic_subscript_error(vm);
+		}
+		idx += didx * array->dims[dim].idxsize;
+	}
+	if (idx >= array->totelem) {
+		goto ARRY_abort;
+	}
+
+	/*
+	 * Pop the arguments off the stack and push the resulting
+	 * var_ref.
+	 */
+	aestk_popn(vm, ndim + 1);
+	aestk_push_varref(vm, &array->elem[idx]);
+	return;
+
+ ARRY_abort:
+	vm_abort(vm, "!BAD ARRAY INDEX");
+}
+
 #undef IMPL
 
 #define	OPC(x)	[OPC_ ## x] = OPC_ ## x ## _impl
@@ -3762,6 +3941,8 @@ static opc_impl_func_t opc_impls[OPC___COUNT] = {
 	OPC(NXTLN),
 	OPC(DMODE),
 	OPC(DSTORE),
+	OPC(DIM),
+	OPC(ARRY),
 };
 
 #undef OPC
@@ -3769,7 +3950,7 @@ static opc_impl_func_t opc_impls[OPC___COUNT] = {
 /*********** Interface routines **********/
 
 const char tbvm_name_string[] = "Jason's Tiny-ish BASIC";
-const char tbvm_version_string[] = "0.3";
+const char tbvm_version_string[] = "0.4";
 
 const char *
 tbvm_name(void)

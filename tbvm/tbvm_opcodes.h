@@ -117,8 +117,10 @@
 #define	OPC_NXTLN	76
 #define	OPC_DMODE	77
 #define	OPC_DSTORE	78
+#define	OPC_DIM		79
+#define	OPC_ARRY	80
 
-#define	OPC___LAST	OPC_DSTORE
+#define	OPC___LAST	OPC_ARRY
 #define	OPC___COUNT	(OPC___LAST + 1)
 
 #define	OPC_F_LABEL	0x01

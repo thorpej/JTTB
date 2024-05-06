@@ -178,6 +178,8 @@ const struct opcode opcode_tab[] = {
 	{ "NXTLN",	OPC_NXTLN,	OPC_F_LABEL },
 	{ "DMODE",	OPC_DMODE,	OPC_F_NUMBER },
 	{ "DSTORE",	OPC_DSTORE,	0 },
+	{ "DIM",	OPC_DIM,	0 },
+	{ "ARRY",	OPC_ARRY,	0 },
 
 	{ NULL,		0,		0 },
 };
