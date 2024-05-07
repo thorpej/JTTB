@@ -343,9 +343,10 @@ notNEXT:
 	; INPUT opt-prompt var-list
 	;
 	; opt-prompt ::=
-	;               "characterstring" ;
+	;                "characterstring" ;
 	;
-	; var-list::= var (, var)*
+	; var-list ::=
+	;              var , var-list
 	;
 	TST	notINPUT,'INPUT'; INPUT statement?
 	TST	IN1,'"'		; Prompt string?
@@ -389,7 +390,8 @@ notREM:
 	;
 	; READ var-list
 	;
-	; var-list::= var (, var)*
+	; var-list ::=
+	;              var , var-list
 	;
 	TST	notREAD,'READ'	; READ statement?
 RD1:	CALL	ReqVarOrArray
