@@ -46,6 +46,10 @@ void	tbvm_free(tbvm *);
 void	tbvm_set_prog(tbvm *, const char *, size_t);
 
 void	tbvm_break(tbvm *);
+void	tbvm_exception(tbvm *, int);
+
+#define	TBVM_EXC_DIV0		0x0001
+#define	TBVM_EXC_ARITH		0x0002
 
 #define	TBVM_FILE_CONSOLE	((void *)-1)
 

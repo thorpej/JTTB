@@ -45,6 +45,21 @@ sigint_handler(int sig)
 	tbvm_break(vm);
 }
 
+static void
+sigfpe_action(int sig, siginfo_t *info, void *ctx)
+{
+	int exc = 0;
+
+	if (info->si_code == FPE_FLTDIV ||
+	    info->si_code == FPE_INTDIV) {
+		exc |= TBVM_EXC_DIV0;
+	} else {
+		exc |= TBVM_EXC_ARITH;
+	}
+
+	tbvm_exception(vm, exc);
+}
+
 static const char *
 mode2stdio(const char *mode)
 {
@@ -140,9 +155,16 @@ static const struct tbvm_time_io jttb_time_io = {
 int
 main(int argc, char *argv[])
 {
+	struct sigaction sa;
+
 	printf("%s, version %s\n", tbvm_name(), tbvm_version());
 
 	signal(SIGINT, sigint_handler);
+
+	sa.sa_sigaction = sigfpe_action;
+	sigemptyset(&sa.sa_mask);
+	sa.sa_flags = 0;
+	sigaction(SIGFPE, &sa, NULL);
 
 	vm = tbvm_alloc(NULL);
 	tbvm_set_file_io(vm, &jttb_file_io);

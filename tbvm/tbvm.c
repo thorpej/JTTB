@@ -38,10 +38,14 @@
 
 #include <assert.h>
 #include <errno.h>
+#ifndef TBVM_CONFIG_INTEGER_ONLY
+#ifndef __vax__
 #include <fenv.h>
 #pragma STDC FENV_ACCESS ON
-#include <limits.h>
+#endif /* __vax__ */
 #include <math.h>
+#endif /* ! TBVM_CONFIG_INTEGER_ONLY */
+#include <limits.h>
 #include <setjmp.h>
 #include <stdbool.h>
 #include <stdlib.h>
@@ -137,6 +141,7 @@ struct tbvm {
 	jmp_buf		vm_abort_env;
 	jmp_buf		basic_error_env;
 	sig_atomic_t	break_received;
+	sig_atomic_t	exceptions;
 
 	const char	*vm_prog;
 	size_t		vm_progsize;
@@ -810,21 +815,63 @@ tbvm_mod(tbvm *vm, tbvm_number num1, tbvm_number num2)
 #define	tbvm_log(vm, num)		log(num)
 #define	tbvm_sqrt(vm, num)		sqrt(num)
 
+/*
+ * On VAX, we don't have <fenv.h> (which is a very IEEE754-oriented header).
+ * We are thus relying on the driver program to catch the exception and and
+ * deliver the TBVM_EXC_* bits to us via tbvm_exception().
+ */
+
+static inline void
+clear_exceptions(tbvm *vm)
+{
+#ifndef __vax__
+	feclearexcept(FE_ALL_EXCEPT);
+#endif
+	vm->exceptions = 0;
+}
+
+static int
+get_exceptions(tbvm *vm)
+{
+#ifndef __vax__
+	int fpexc =
+	    fetestexcept(FE_UNDERFLOW|FE_OVERFLOW|FE_DIVBYZERO|FE_INVALID);
+#endif
+	int vmexc = vm->exceptions;
+
+	if (
+#ifndef __vax__
+	    fpexc == 0 &&
+#endif
+	    vmexc == 0) {
+		return 0;
+	}
+
+	vm->exceptions = 0;
+#ifndef __vax__
+	feclearexcept(FE_ALL_EXCEPT);
+
+	if (fpexc & FE_DIVBYZERO) {
+		vmexc |= TBVM_EXC_DIV0;
+	} else if (fpexc & (FE_UNDERFLOW|FE_OVERFLOW|FE_INVALID)) {
+		vmexc |= TBVM_EXC_ARITH;
+	}
+#endif
+	return vmexc;
+}
+
 static void
 check_math_error(tbvm *vm)
 {
-	int excepts =
-	    fetestexcept(FE_UNDERFLOW|FE_OVERFLOW|FE_DIVBYZERO|FE_INVALID);
+	int exc = get_exceptions(vm);
 
-	if (excepts == 0) {
+	if (exc == 0) {
 		return;
 	}
 
-	feclearexcept(FE_ALL_EXCEPT);
-
-	if (excepts & FE_DIVBYZERO) {
+	if (exc & TBVM_EXC_DIV0) {
 		basic_div0_error(vm);
-	} else {
+	} else if (exc & TBVM_EXC_ARITH) {
 		basic_math_error(vm);
 	}
 }
@@ -4103,7 +4150,9 @@ tbvm_runprog(tbvm *vm)
 		vm_abort(vm, "!NO VM PROG");
 	}
 
-	feclearexcept(FE_ALL_EXCEPT);
+#ifndef TBVM_CONFIG_INTEGER_ONLY
+	clear_exceptions(vm);
+#endif /* TBVM_CONFIG_INTEGER_ONLY */
 
 	while (vm->vm_run) {
 		string_gc(vm);
@@ -4141,6 +4190,12 @@ void
 tbvm_break(tbvm *vm)
 {
 	vm->break_received = 1;
+}
+
+void
+tbvm_exception(tbvm *vm, int exc)
+{
+	vm->exceptions = exc;
 }
 
 void
