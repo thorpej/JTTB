@@ -1305,7 +1305,6 @@ var_init(tbvm *vm)
 		value_release_and_init(vm, &vm->vars[i], VALUE_TYPE_STRING);
 		var_release_array(vm, i);
 	}
-	string_gc(vm);
 }
 
 static int
@@ -3009,8 +3008,6 @@ get_prog_filename(tbvm *vm)
 	case VALUE_TYPE_INTEGER:
 		if (value.integer == 0 && vm->prog_file_name != NULL) {
 			filename = vm->prog_file_name;
-			string_release(vm, vm->prog_file_name);
-			vm->prog_file_name = NULL;
 		}
 		break;
 
@@ -3023,9 +3020,14 @@ get_prog_filename(tbvm *vm)
 	}
 
 	if (filename != NULL) {
-		filename = string_terminate(vm, filename);
-		string_retain(vm, filename);
-		vm->prog_file_name = filename;
+		if (filename != vm->prog_file_name) {
+			if (vm->prog_file_name != NULL) {
+				string_release(vm, vm->prog_file_name);
+			}
+			filename = string_terminate(vm, filename);
+			string_retain(vm, filename);
+			vm->prog_file_name = filename;
+		}
 	}
 
 	return filename;
