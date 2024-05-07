@@ -107,16 +107,14 @@ typedef struct string {
 struct value {
 	int type;
 	union {
-		int		integer;
 		tbvm_number	number;
 		string *	string;
 		var_ref		var_ref;
 	};
 };
 #define	VALUE_TYPE_ANY		0
-#define	VALUE_TYPE_INTEGER	1	/* integer field */
-#define	VALUE_TYPE_NUMBER	2	/* number field */
-#define	VALUE_TYPE_STRING	3	/* string field */
+#define	VALUE_TYPE_NUMBER	1	/* number field */
+#define	VALUE_TYPE_STRING	2	/* string field */
 #define	VALUE_TYPE_VARREF	10	/* var_ref field */
 
 struct array_dim {
@@ -913,7 +911,6 @@ value_valid_p(tbvm *vm, const struct value *value)
 	bool rv = true;
 
 	switch (value->type) {
-	case VALUE_TYPE_INTEGER:
 	case VALUE_TYPE_NUMBER:
 	case VALUE_TYPE_VARREF:
 		break;
@@ -980,55 +977,6 @@ static void
 value_release(tbvm *vm, struct value *value)
 {
 	value_release_and_init(vm, value, VALUE_TYPE_ANY);
-}
-
-static void
-value_coerce_number(tbvm *vm, struct value *val)
-{
-	switch (val->type) {
-	case VALUE_TYPE_INTEGER:
-		val->number = int_to_number(vm, val->integer);
-		val->type = VALUE_TYPE_NUMBER;
-		break;
-
-	case VALUE_TYPE_NUMBER:
-		break;
-
-	default:
-		basic_wrong_type_error(vm);
-	}
-}
-
-static void
-value_coerce_integer(tbvm *vm, struct value *val)
-{
-	switch (val->type) {
-	case VALUE_TYPE_INTEGER:
-		break;
-
-	case VALUE_TYPE_NUMBER:
-		if (! integer_p(vm, val->number)) {
-			basic_illegal_quantity_error(vm);
-		}
-		val->integer = number_to_int(vm, val->number);
-		val->type = VALUE_TYPE_INTEGER;
-		break;
-
-	default:
-		basic_wrong_type_error(vm);
-	}
-}
-
-static void
-value_coerce_string(tbvm *vm, struct value *val)
-{
-	switch (val->type) {
-	case VALUE_TYPE_STRING:
-		break;
-
-	default:
-		basic_wrong_type_error(vm);
-	}
 }
 
 /*********** Generic stack routines **********/
@@ -1197,26 +1145,6 @@ aestk_reset(tbvm *vm)
 }
 
 static void
-aestk_push_integer(tbvm *vm, int val)
-{
-	struct value value = {
-		.type = VALUE_TYPE_INTEGER,
-		.integer = val,
-	};
-	aestk_push_value(vm, &value);
-}
-
-static int
-aestk_pop_integer(tbvm *vm)
-{
-	struct value value;
-
-	aestk_pop_value(vm, VALUE_TYPE_ANY, &value);
-	value_coerce_integer(vm, &value);
-	return value.integer;
-}
-
-static void
 aestk_push_number(tbvm *vm, tbvm_number val)
 {
 	struct value value = {
@@ -1231,8 +1159,7 @@ aestk_pop_number(tbvm *vm)
 {
 	struct value value;
 
-	aestk_pop_value(vm, VALUE_TYPE_ANY, &value);
-	value_coerce_number(vm, &value);
+	aestk_pop_value(vm, VALUE_TYPE_NUMBER, &value);
 	return value.number;
 }
 
@@ -2073,10 +2000,6 @@ IMPL(PRN)
 	aestk_pop_value(vm, VALUE_TYPE_ANY, &value);
 
 	switch (value.type) {
-	case VALUE_TYPE_INTEGER:
-		print_integer(vm, value.integer);
-		break;
-
 	case VALUE_TYPE_NUMBER:
 		print_number(vm, value.number);
 		break;
@@ -2141,7 +2064,7 @@ IMPL(NXTLN)
  */
 IMPL(XFER)
 {
-	int lineno = aestk_pop_integer(vm);
+	int lineno = number_to_int(vm, aestk_pop_number(vm));
 
 	/* Don't let this put us in direct mode. */
 	if (lineno == 0) {
@@ -2184,15 +2107,8 @@ compare(tbvm *vm)
 	bool result = false;
 
 	aestk_pop_value(vm, VALUE_TYPE_ANY, &val2);
-	rel = aestk_pop_integer(vm);
+	rel = number_to_int(vm, aestk_pop_number(vm));
 	aestk_pop_value(vm, VALUE_TYPE_ANY, &val1);
-
-	if (val1.type != VALUE_TYPE_STRING) {
-		value_coerce_number(vm, &val1);
-	}
-	if (val2.type != VALUE_TYPE_STRING) {
-		value_coerce_number(vm, &val2);
-	}
 
 	/*
 	 * Only numbers and string, and they must both being
@@ -2301,7 +2217,7 @@ IMPL(CMPRX)
  */
 IMPL(LIT)
 {
-	aestk_push_integer(vm, get_literal(vm));
+	aestk_push_number(vm, int_to_number(vm, get_literal(vm)));
 }
 
 /*
@@ -2453,7 +2369,7 @@ IMPL(INVAR)
 	struct value value;
 	char * const startc = vm->tmp_buf;
 	var_ref var = aestk_pop_varref(vm);
-	int pcount = aestk_pop_integer(vm);
+	int pcount = number_to_int(vm, aestk_pop_number(vm));
 	int ch, ptr;
 
  get_input:
@@ -2495,7 +2411,7 @@ IMPL(INVAR)
 		value.type = VALUE_TYPE_NUMBER;
 	}
 	var_set_value(vm, var, &value);
-	aestk_push_integer(vm, pcount);
+	aestk_push_number(vm, int_to_number(vm, pcount));
 }
 
 /*
@@ -2529,37 +2445,12 @@ IMPL(ADD)
 	aestk_pop_value(vm, VALUE_TYPE_ANY, &val2);
 	aestk_pop_value(vm, VALUE_TYPE_ANY, &val1);
 
-	/*
-	 * Get both values into the same type.
-	 */
+	/* Both values must be the same type. */
 	if (val1.type != val2.type) {
-		/*
-		 * If either is a number, both must be a number.
-		 */
-		if (val1.type == VALUE_TYPE_NUMBER ||
-		    val2.type == VALUE_TYPE_NUMBER) {
-			/*
-			 * value_coerce_number() will WRONG TYPE
-			 * if the value is a string.
-			 */
-			value_coerce_number(vm, &val1);
-			value_coerce_number(vm, &val2);
-		} else
-		/*
-		 * If either is a string, both must be a string.
-		 */
-		if (val1.type == VALUE_TYPE_STRING ||
-		    val2.type == VALUE_TYPE_STRING) {
-			value_coerce_string(vm, &val1);
-			value_coerce_string(vm, &val2);
-		}
+		basic_wrong_type_error(vm);
 	}
 
 	switch (val1.type) {
-	case VALUE_TYPE_INTEGER:
-		aestk_push_integer(vm, val1.integer + val2.integer);
-		break;
-
 	case VALUE_TYPE_NUMBER:
 		aestk_push_number(vm, val1.number + val2.number);
 		check_math_error(vm);
@@ -2900,8 +2791,8 @@ IMPL(LST)
  */
 IMPL(LSTX)
 {
-	int lastline = aestk_pop_integer(vm);
-	int firstline = aestk_pop_integer(vm);
+	int lastline = number_to_int(vm, aestk_pop_number(vm));
+	int firstline = number_to_int(vm, aestk_pop_number(vm));
 
 	list_program(vm, firstline, lastline);
 }
@@ -3005,8 +2896,8 @@ get_prog_filename(tbvm *vm)
 
 	aestk_pop_value(vm, VALUE_TYPE_ANY, &value);
 	switch (value.type) {
-	case VALUE_TYPE_INTEGER:
-		if (value.integer == 0 && vm->prog_file_name != NULL) {
+	case VALUE_TYPE_NUMBER:
+		if (value.number == 0 && vm->prog_file_name != NULL) {
 			filename = vm->prog_file_name;
 		}
 		break;
@@ -3593,24 +3484,23 @@ IMPL(SQR)
 IMPL(MKS)
 {
 	struct value val2;
-	int count;
+	int count, code;
 	char ch;
 
 	aestk_pop_value(vm, VALUE_TYPE_ANY, &val2);
-	count = aestk_pop_integer(vm);
+	count = number_to_int(vm, aestk_pop_number(vm));
 
 	if (count < 1 || count > 255) {
 		basic_illegal_quantity_error(vm);
 	}
 
 	switch (val2.type) {
-	case VALUE_TYPE_INTEGER:
 	case VALUE_TYPE_NUMBER:
-		value_coerce_integer(vm, &val2);
-		if (val2.integer < 0 || val2.integer > UCHAR_MAX) {
+		code = number_to_int(vm, val2.number);
+		if (code < 0 || code > UCHAR_MAX) {
 			basic_illegal_quantity_error(vm);
 		}
-		ch = (char)val2.integer;
+		ch = (char)code;
 		break;
 
 	case VALUE_TYPE_STRING:
@@ -3647,14 +3537,14 @@ IMPL(MKS)
  */
 IMPL(SBSTR)
 {
-	int mode = aestk_pop_integer(vm);
+	int mode = number_to_int(vm, aestk_pop_number(vm));
 	int pos = -1, len = -1;
 	string *string, *newstr;
 
 	switch (mode) {
 	case 0:
-		len = aestk_pop_integer(vm);
-		pos = aestk_pop_integer(vm);
+		len = number_to_int(vm, aestk_pop_number(vm));
+		pos = number_to_int(vm, aestk_pop_number(vm));
 		string = aestk_pop_string(vm);
 		if (pos < 1 || len < 0) {
 			basic_illegal_quantity_error(vm);
@@ -3664,7 +3554,7 @@ IMPL(SBSTR)
 		break;
 
 	case 1:
-		pos = aestk_pop_integer(vm);
+		pos = number_to_int(vm, aestk_pop_number(vm));
 		string = aestk_pop_string(vm);
 		if (pos < 1) {
 			basic_illegal_quantity_error(vm);
@@ -3679,7 +3569,7 @@ IMPL(SBSTR)
 		break;
 
 	case 2:
-		len = aestk_pop_integer(vm);
+		len = number_to_int(vm, aestk_pop_number(vm));
 		string = aestk_pop_string(vm);
 		if (len < 0) {
 			basic_illegal_quantity_error(vm);
@@ -3969,7 +3859,7 @@ IMPL(ARRY)
 IMPL(ADVCRS)
 {
 	int mode = get_literal(vm);
-	int val = aestk_pop_integer(vm);
+	int val = number_to_int(vm, aestk_pop_number(vm));
 
 	if (val < 0) {
 		basic_illegal_quantity_error(vm);
