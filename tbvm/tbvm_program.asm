@@ -137,6 +137,9 @@
 ; ==> Added support for the TAB() and SPC() functions using the new
 ;     ADVCRS VM insn.
 ;
+; ==> Added support for the DEG() and RAD() functions using the new
+;     DEGRAD VM insn.
+;
 ; Original Tiny BASIC VM opcodes that are no longer used:
 ; ==> CMPR (replaced by CMPRX)
 ; ==> LST (replaced by LSTX)
@@ -789,6 +792,18 @@ notLOG:
 	SQR
 	RTN
 notSQR:
+
+	TST	notDEG,'DEG'	; DEG() function?
+	CALL	FUNC1ARG
+	DEGRAD	0		; mode 0 -> radians to degrees
+	RTN
+notDEG:
+
+	TST	notRAD,'RAD'	; RAD() function?
+	CALL	FUNC1ARG
+	DEGRAD	1		; mode 1 -> degrees to radians
+	RTN
+notRAD:
 
 	;
 	; Classical MS BASIC does not process SPC() and TAB() like

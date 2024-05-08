@@ -120,8 +120,9 @@
 #define	OPC_DIM		79
 #define	OPC_ARRY	80
 #define	OPC_ADVCRS	81
+#define	OPC_DEGRAD	82
 
-#define	OPC___LAST	OPC_ADVCRS
+#define	OPC___LAST	OPC_DEGRAD
 #define	OPC___COUNT	(OPC___LAST + 1)
 
 #define	OPC_F_LABEL	0x01

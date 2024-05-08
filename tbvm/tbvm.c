@@ -795,6 +795,8 @@ tbvm_mod(tbvm *vm, tbvm_number num1, tbvm_number num2)
 #define	tbvm_log(vm, num)		tbvm_math_unimpl((vm))
 #define	tbvm_sqrt(vm, num)		tbvm_math_unimpl((vm))
 
+#define	tbvm_const_pi(vm)		tbvm_math_unimpl((vm))
+
 #define	check_math_error(vm)		/* nothing */
 
 #else /* ! TBVM_CONFIG_INTEGER_ONLY */
@@ -812,6 +814,8 @@ tbvm_mod(tbvm *vm, tbvm_number num1, tbvm_number num2)
 #define	tbvm_exp(vm, num)		exp(num)
 #define	tbvm_log(vm, num)		log(num)
 #define	tbvm_sqrt(vm, num)		sqrt(num)
+
+#define	tbvm_const_pi(vm)		M_PI
 
 /*
  * On VAX, we don't have <fenv.h> (which is a very IEEE754-oriented header).
@@ -3447,6 +3451,25 @@ IMPL(TAN)
 }
 
 /*
+ * Pop the number from the AESTK and convert degrees to radians (mode 1)
+ * or radians to degrees (mode 0).
+ */
+IMPL(DEGRAD)
+{
+	int mode = get_literal(vm);
+	tbvm_number val = aestk_pop_number(vm);
+
+	if (mode) {
+		/* degrees to radians */
+		val = val * tbvm_const_pi(vm) / 180;
+	} else {
+		/* radians to degrees */
+		val = val * 180 / tbvm_const_pi(vm);
+	}
+	aestk_push_number(vm, val);
+}
+
+/*
  * Pops the number value from the AESTK, computes the base e exponential, and
  * pushes the result.
  */
@@ -3966,6 +3989,7 @@ static opc_impl_func_t opc_impls[OPC___COUNT] = {
 	OPC(DIM),
 	OPC(ARRY),
 	OPC(ADVCRS),
+	OPC(DEGRAD),
 };
 
 #undef OPC
