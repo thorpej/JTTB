@@ -1722,7 +1722,7 @@ next_statement(tbvm *vm)
 	}
 }
 
-static char
+static unsigned char
 get_progbyte(tbvm *vm)
 {
 	if (vm->pc < 0 || vm->pc >= vm->vm_progsize) {
@@ -1735,7 +1735,7 @@ static unsigned char
 get_opcode(tbvm *vm)
 {
 	vm->opc_pc = vm->pc;
-	return (unsigned char)get_progbyte(vm);
+	return get_progbyte(vm);
 }
 
 static int
@@ -1743,8 +1743,8 @@ get_label(tbvm *vm)
 {
 	int tmp;
 
-	tmp  = (unsigned char)get_progbyte(vm);
-	tmp |= (unsigned char)get_progbyte(vm) << 8;
+	tmp  = get_progbyte(vm);
+	tmp |= get_progbyte(vm) << 8;
 
 	return tmp;
 }
