@@ -140,6 +140,9 @@
 ; ==> Added support for the DEG() and RAD() functions using the new
 ;     DEGRAD VM insn.
 ;
+; ==> Added support for the Standard BASIC keyword PI, which is
+;     implemented by substituting RAD(180).
+;
 ; Original Tiny BASIC VM opcodes that are no longer used:
 ; ==> CMPR (replaced by CMPRX)
 ; ==> LST (replaced by LSTX)
@@ -600,6 +603,7 @@ Serr:	ERR			; Syntax error.
 ;          factor % term
 ;
 ; factor ::= function
+;            reserved-const
 ;            var
 ;            "characterstring"
 ;            number
@@ -634,6 +638,8 @@ Serr:	ERR			; Syntax error.
 ;
 ; mid-opt-len ::=
 ;                 , expression
+;
+; reserved-const ::= PI
 ;
 ; var ::= A | B | ... | Y | Z
 ;
@@ -887,6 +893,16 @@ notRIGHT:
 	JMP	MID2
 notLEFT:
 
+	;
+	; Check for reserved constants before variables, because
+	; these reserved names may otherwise collide with var
+	; names.
+	;
+	TST	notPi,'PI'	; Is it Pi?
+	LIT	180		; Yes, push 180 onto the expression stack.
+	DEGRAD	1		; mode 1 -> degrees to radians
+	RTN
+notPi:
 
 	TSTV	F0		; Variable?
 	CALL	ARRAY		; Maybe index array.
