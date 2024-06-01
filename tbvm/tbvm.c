@@ -797,6 +797,24 @@ tbvm_mod(tbvm *vm, tbvm_number num1, tbvm_number num2)
 
 #define	tbvm_const_pi(vm)		tbvm_math_unimpl((vm))
 
+static bool
+tbvm_strtonum(const char *cp, char **endptr, tbvm_number *valp)
+{
+	long val;
+
+	*valp = 0;
+	errno = 0;
+	val = strtol(cp, endptr, 10);
+	if (errno == ERANGE || *endptr == cp) {
+		return false;
+	}
+	if (val > INT_MAX || val < INT_MIN) {
+		return false;
+	}
+	*valp = (int)val;
+	return true;
+}
+
 #define	check_math_error(vm)		/* nothing */
 
 #else /* ! TBVM_CONFIG_INTEGER_ONLY */
@@ -816,6 +834,17 @@ tbvm_mod(tbvm *vm, tbvm_number num1, tbvm_number num2)
 #define	tbvm_sqrt(vm, num)		sqrt(num)
 
 #define	tbvm_const_pi(vm)		M_PI
+
+static bool
+tbvm_strtonum(const char *cp, char **endptr, tbvm_number *valp)
+{
+	errno = 0;
+	*valp = strtod(cp, endptr);
+	if (errno == ERANGE || *endptr == cp) {
+		return false;
+	}
+	return true;
+}
 
 /*
  * On VAX, we don't have <fenv.h> (which is a very IEEE754-oriented header).
@@ -2241,8 +2270,9 @@ get_input_number(tbvm *vm, const char * const startc, bool pm_ok, tbvm_number *v
 	int ptr = 0;
 
 	/*
-	 * strtod() skips leading whitespace, but we want to do it
-	 * ourselves in order to be more strict about what we parse.
+	 * tbvm_strtonum() uses a C library function that skips leading
+	 * whitespace, but we want to do it ourselves in order to be more
+	 * strict about what we parse.
 	 */
 	skip_whitespace_buf(startc, &ptr);
 
@@ -2256,9 +2286,7 @@ get_input_number(tbvm *vm, const char * const startc, bool pm_ok, tbvm_number *v
 		}
 	}
 
-	errno = 0;
-	val = strtod(startc, &endc);
-	if (errno == ERANGE) {
+	if (! tbvm_strtonum(startc, &endc, &val)) {
 		return false;
 	}
 
@@ -2638,9 +2666,7 @@ IMPL(DSTORE)
 			basic_wrong_type_error(vm);
 		}
 
-		errno = 0;
-		val = strtod(string->str, &cp);
-		if (errno == ERANGE) {
+		if (! tbvm_strtonum(string->str, &cp, &val)) {
 			basic_illegal_quantity_error(vm);
 		}
 		if (*cp != '\0') {
@@ -3287,13 +3313,12 @@ IMPL(VAL)
 	tbvm_number val;
 	char *cp;
 
-	errno = 0;
-	val = strtod(string->str, &cp);
-	if (errno == ERANGE) {
-		basic_illegal_quantity_error(vm);
-	}
-	if (cp == string->str) {
-		val = 0;
+	if (! tbvm_strtonum(string->str, &cp, &val)) {
+		if (cp == string->str) {
+			val = 0;
+		} else {
+			basic_illegal_quantity_error(vm);
+		}
 	}
 	aestk_push_number(vm, val);
 }
