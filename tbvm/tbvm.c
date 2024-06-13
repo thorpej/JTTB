@@ -94,6 +94,7 @@ struct subr {
 	tbvm_number step;
 };
 
+#define	SUBR_VAR_ANYVAR		((var_ref)-2)
 #define	SUBR_VAR_SUBROUTINE	((var_ref)-1)
 
 typedef struct string {
@@ -1102,7 +1103,9 @@ sbrstk_pop(tbvm *vm, var_ref var, struct subr *subrp, bool pop_match)
 	int slot;
 
 	for (slot = vm->sbrstk_ptr - 1; slot >= 0; slot--) {
-		if (vm->sbrstk[slot].var == var) {
+		if ((var == SUBR_VAR_ANYVAR &&
+		     vm->sbrstk[slot].var != SUBR_VAR_SUBROUTINE) ||
+		    (var != SUBR_VAR_ANYVAR && vm->sbrstk[slot].var == var)) {
 			*subrp = vm->sbrstk[slot];
 			vm->sbrstk_ptr = pop_match ? slot : slot + 1;
 			return true;
@@ -3105,13 +3108,32 @@ IMPL(STEP)
  */
 IMPL(NXTFOR)
 {
-	var_ref var = aestk_pop_varref(vm);
+	struct value value;
+	var_ref var;
 	struct subr subr;
 	tbvm_number newval;
 	bool done = false;
 
+	aestk_pop_value(vm, VALUE_TYPE_ANY, &value);
+
+	if (value.type == VALUE_TYPE_VARREF) {
+		var = value.var_ref;
+	} else if (value.type == VALUE_TYPE_NUMBER) {
+		/*
+		 * Perform NEXT for whichever is the inner-most FOR
+		 * loop.
+		 */
+		var = SUBR_VAR_ANYVAR;
+	} else {
+		vm_abort(vm, "!INVALID NXTFOR");
+	}
+
 	if (! sbrstk_pop(vm, var, &subr, false)) {
 		basic_next_error(vm);
+	}
+	if (var == SUBR_VAR_ANYVAR) {
+		/* Found the inner-most FOR loop; recover the var. */
+		var = subr.var;
 	}
 	newval = var_get_number(vm, var) + subr.step;
 

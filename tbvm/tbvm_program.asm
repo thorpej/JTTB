@@ -337,11 +337,17 @@ noSTEP:
 notFOR:
 
 	;
-	; NEXT var
+	; NEXT opt-var
+	;
+	; opt-var ::=
+	;             var
 	;
 	TST	notNEXT,'NEXT'	; NEXT statement?
-	CALL	ReqVarOrArray
-	DONEM	0		; End of statement (RUN-mode).
+	TSTEOL	NXT1		; Check for bare NEXT statement.
+	LIT	0		; Yes, make a note for NXTFOR.
+	JMP	NXT2
+NXT1:	CALL	ReqVarOrArray	; Otherwise, a var is required.
+NXT2:	DONEM	0		; End of statement (RUN-mode).
 	NXTFOR			; Next statement according to loop cond.
 notNEXT:
 
