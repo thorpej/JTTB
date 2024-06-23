@@ -513,20 +513,27 @@ CLR99:	DONEM	0		; End of statement (RUN-mode).
 notCLR:
 
 	;
-	; DIM var ( expression opt-dim )
+	; DIM dim-var-list
+	;
+	; dim-var-list ::=
+	;                  dim-var , dim-var-list
+	;
+	; dim-var ::= var ( expression opt-dim )
 	;
 	; opt-dim ::=
 	;             , expression opt-dim
 	;
 	TST	notDIM,'DIM'	; DIM statement?
-	TSTV	Serr		; Get naming var.
+DIM0:	TSTV	Serr		; Get naming var.
 	TST	Serr,'('
 DIM1:	CALL	EXPR		; Get expression argument.
 	TST	DIM2,','	; Separator?
 	JMP	DIM1		; Get, get next expression argument.
 DIM2:	TST	Serr,')'
-	DONE			; End of statement.
 	DIM			; Dimension array associated with var.
+	TST	DIM3,','	; Another array to dimension?
+	JMP	DIM0		; Yes, go do it.
+DIM3:	DONE			; End of statement.
 	NXT			; Next statement.
 notDIM:
 
