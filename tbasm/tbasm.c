@@ -183,6 +183,7 @@ const struct opcode opcode_tab[] = {
 	{ "ARRY",	OPC_ARRY,	0 },
 	{ "ADVCRS",	OPC_ADVCRS,	OPC_F_NUMBER },
 	{ "DEGRAD",	OPC_DEGRAD,	OPC_F_NUMBER },
+	{ "UPRLWR",	OPC_UPRLWR,	OPC_F_NUMBER },
 
 	{ NULL,		0,		0 },
 };

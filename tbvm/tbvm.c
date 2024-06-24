@@ -37,6 +37,7 @@
  */
 
 #include <assert.h>
+#include <ctype.h>
 #include <errno.h>
 #ifndef TBVM_CONFIG_INTEGER_ONLY
 #ifndef __vax__
@@ -3947,6 +3948,39 @@ IMPL(ADVCRS)
 	aestk_push_string(vm, string_alloc(vm, NULL, 0, 0));
 }
 
+/*
+ * Convert a string to all-upper-case or all-lower-case based
+ * on mode:
+ *
+ * 0 - lower-case
+ *
+ * 1 - upper-case
+ */
+IMPL(UPRLWR)
+{
+	int doup = get_literal(vm);
+	string *arg = aestk_pop_string(vm);
+	string *newstr = string_alloc(vm, arg->str, arg->len, 0);
+	int i;
+
+	if (doup) {
+		for (i = 0; i < newstr->len; i++) {
+			if (islower((unsigned char)newstr->str[i])) {
+				newstr->str[i] =
+				    toupper((unsigned char)newstr->str[i]);
+			}
+		}
+	} else {
+		for (i = 0; i < newstr->len; i++) {
+			if (isupper((unsigned char)newstr->str[i])) {
+				newstr->str[i] =
+				    tolower((unsigned char)newstr->str[i]);
+			}
+		}
+	}
+	aestk_push_string(vm, newstr);
+}
+
 #undef IMPL
 
 #define	OPC(x)	[OPC_ ## x] = OPC_ ## x ## _impl
@@ -4037,6 +4071,7 @@ static opc_impl_func_t opc_impls[OPC___COUNT] = {
 	OPC(ARRY),
 	OPC(ADVCRS),
 	OPC(DEGRAD),
+	OPC(UPRLWR),
 };
 
 #undef OPC

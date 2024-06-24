@@ -143,6 +143,10 @@
 ; ==> Added support for the Standard BASIC keyword PI, which is
 ;     implemented by substituting RAD(180).
 ;
+; ==> Added Standard BASIC UCASE$() and LCASE$() functions that convert
+;     a string to all-upper-case or all-lower-case, respectively, using
+;     the new UPRLWR VM insn.
+;
 ; Original Tiny BASIC VM opcodes that are no longer used:
 ; ==> CMPR (replaced by CMPRX)
 ; ==> LST (replaced by LSTX)
@@ -648,6 +652,8 @@ Serr:	ERR			; Syntax error.
 ;              MID$ ( expression , expression mid-opt-len )
 ;              RIGHT$ ( expression , expression )
 ;              LEFT$ ( expression , expression )
+;              UCASE$ ( expression )
+;              LCASE$ ( expression )
 ;
 ; mid-opt-len ::=
 ;                 , expression
@@ -905,6 +911,18 @@ notRIGHT:
 	LIT	0		; SUBSTR mode 0.
 	JMP	MID2
 notLEFT:
+
+	TST	notUCASE,'UCASE$' ; UCASE$() function?
+	CALL	FUNC1ARG
+	UPRLWR	1		; mode 1 -> up-case
+	RTN
+notUCASE:
+
+	TST	notLCASE,'LCASE$' ; LCASE$() function?
+	CALL	FUNC1ARG
+	UPRLWR	0		; mode 0 -> down-case
+	RTN
+notLCASE:
 
 	;
 	; Check for reserved constants before variables, because
