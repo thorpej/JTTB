@@ -52,7 +52,6 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
-#include <signal.h>
 
 #include "tbvm.h"
 #include "tbvm_opcodes.h"
@@ -140,7 +139,6 @@ array_size(int ndim)
 struct tbvm {
 	jmp_buf		vm_abort_env;
 	jmp_buf		basic_error_env;
-	sig_atomic_t	exceptions;
 
 	const char	*vm_prog;
 	size_t		vm_progsize;
@@ -174,6 +172,7 @@ struct tbvm {
 	unsigned int	cons_column;
 
 	const struct tbvm_time_io *time_io;
+	const struct tbvm_exc_io *exc_io;
 
 	unsigned int	rand_seed;
 
@@ -262,6 +261,15 @@ vm_io_gettime(tbvm *vm, unsigned long *timep)
 		return (*vm->time_io->io_gettime)(vm->context, timep);
 	}
 	return false;
+}
+
+static int
+vm_io_math_exc(tbvm *vm)
+{
+	if (vm->exc_io != NULL) {
+		return (*vm->exc_io->io_math_exc)(vm->context);
+	}
+	return 0;
 }
 
 /*********** String routines **********/
@@ -855,18 +863,9 @@ tbvm_strtonum(const char *cp, char **endptr, tbvm_number *valp)
 
 /*
  * On VAX, we don't have <fenv.h> (which is a very IEEE754-oriented header).
- * We are thus relying on the driver program to catch the exception and and
- * deliver the TBVM_EXC_* bits to us via tbvm_exception().
+ * We are thus relying on the driver program to catch the exception and report
+ * them to us as TBVM_EXC_* bits.
  */
-
-static inline void
-clear_exceptions(tbvm *vm)
-{
-#ifndef __vax__
-	feclearexcept(FE_ALL_EXCEPT);
-#endif
-	vm->exceptions = 0;
-}
 
 static int
 get_exceptions(tbvm *vm)
@@ -875,7 +874,7 @@ get_exceptions(tbvm *vm)
 	int fpexc =
 	    fetestexcept(FE_UNDERFLOW|FE_OVERFLOW|FE_DIVBYZERO|FE_INVALID);
 #endif
-	int vmexc = vm->exceptions;
+	int vmexc = vm_io_math_exc(vm);
 
 	if (
 #ifndef __vax__
@@ -885,7 +884,6 @@ get_exceptions(tbvm *vm)
 		return 0;
 	}
 
-	vm->exceptions = 0;
 #ifndef __vax__
 	feclearexcept(FE_ALL_EXCEPT);
 
@@ -4125,6 +4123,12 @@ tbvm_set_time_io(tbvm *vm, const struct tbvm_time_io *io)
 }
 
 void
+tbvm_set_exc_io(tbvm *vm, const struct tbvm_exc_io *io)
+{
+	vm->exc_io = io;
+}
+
+void
 tbvm_set_prog(tbvm *vm, const char *prog, size_t progsize)
 {
 	vm->vm_prog = prog;
@@ -4153,7 +4157,7 @@ tbvm_runprog(tbvm *vm)
 	}
 
 #ifndef TBVM_CONFIG_INTEGER_ONLY
-	clear_exceptions(vm);
+	(void) get_exceptions(vm);	/* clear any pending exceptions */
 #endif /* TBVM_CONFIG_INTEGER_ONLY */
 
 	while (vm->vm_run) {
@@ -4186,12 +4190,6 @@ tbvm_exec(tbvm *vm)
 	}
 
 	tbvm_runprog(vm);
-}
-
-void
-tbvm_exception(tbvm *vm, int exc)
-{
-	vm->exceptions = exc;
 }
 
 void

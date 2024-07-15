@@ -45,8 +45,6 @@ void	tbvm_free(tbvm *);
 
 void	tbvm_set_prog(tbvm *, const char *, size_t);
 
-void	tbvm_exception(tbvm *, int);
-
 #define	TBVM_EXC_DIV0		0x0001
 #define	TBVM_EXC_ARITH		0x0002
 
@@ -67,5 +65,11 @@ struct tbvm_time_io {
 };
 
 void	tbvm_set_time_io(tbvm *, const struct tbvm_time_io *);
+
+struct tbvm_exc_io {
+	int	(*io_math_exc)(void *);
+};
+
+void	tbvm_set_exc_io(tbvm *, const struct tbvm_exc_io *);
 
 #endif /* tbvm_h_included */

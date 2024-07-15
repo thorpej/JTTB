@@ -47,6 +47,11 @@ sigint_handler(int sig)
 	received_sigint = 1;
 }
 
+_Static_assert(sizeof(sig_atomic_t) >= sizeof(int),
+    "sig_atomic_t too small");
+
+static sig_atomic_t fp_exceptions;
+
 static void
 sigfpe_action(int sig, siginfo_t *info, void *ctx)
 {
@@ -59,7 +64,7 @@ sigfpe_action(int sig, siginfo_t *info, void *ctx)
 		exc |= TBVM_EXC_ARITH;
 	}
 
-	tbvm_exception(vm, exc);
+	fp_exceptions |= exc;
 }
 
 static const char *
@@ -171,6 +176,19 @@ static const struct tbvm_time_io jttb_time_io = {
 	.io_gettime = jttb_gettime,
 };
 
+static int
+jttb_math_exc(void *vctx)
+{
+	int exc = (int)fp_exceptions;
+	fp_exceptions = 0;
+
+	return exc;
+}
+
+static const struct tbvm_exc_io jttb_exc_io = {
+	.io_math_exc = jttb_math_exc,
+};
+
 int
 main(int argc, char *argv[])
 {
@@ -188,6 +206,7 @@ main(int argc, char *argv[])
 	vm = tbvm_alloc(NULL);
 	tbvm_set_file_io(vm, &jttb_file_io);
 	tbvm_set_time_io(vm, &jttb_time_io);
+	tbvm_set_exc_io(vm, &jttb_exc_io);
 	tbvm_exec(vm);
 	tbvm_free(vm);
 
