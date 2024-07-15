@@ -45,7 +45,6 @@ void	tbvm_free(tbvm *);
 
 void	tbvm_set_prog(tbvm *, const char *, size_t);
 
-void	tbvm_break(tbvm *);
 void	tbvm_exception(tbvm *, int);
 
 #define	TBVM_EXC_DIV0		0x0001
@@ -58,6 +57,7 @@ struct tbvm_file_io {
 	void	(*io_closefile)(void *, void *);
 	int	(*io_getchar)(void *, void *);
 	void	(*io_putchar)(void *, void *, int);
+	bool	(*io_check_break)(void *, void *);
 };
 
 void	tbvm_set_file_io(tbvm *, const struct tbvm_file_io *);

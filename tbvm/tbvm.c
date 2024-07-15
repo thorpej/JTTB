@@ -140,7 +140,6 @@ array_size(int ndim)
 struct tbvm {
 	jmp_buf		vm_abort_env;
 	jmp_buf		basic_error_env;
-	sig_atomic_t	break_received;
 	sig_atomic_t	exceptions;
 
 	const char	*vm_prog;
@@ -248,6 +247,12 @@ static void
 vm_io_closefile(tbvm *vm, void *file)
 {
 	(*vm->file_io->io_closefile)(vm->context, file);
+}
+
+static bool
+vm_io_check_break(tbvm *vm)
+{
+	return (*vm->file_io->io_check_break)(vm->context, vm->cons_file);
 }
 
 static bool
@@ -1633,12 +1638,11 @@ init_vm(tbvm *vm)
 static bool
 check_break(tbvm *vm)
 {
-	if (vm->break_received) {
+	if (vm_io_check_break(vm)) {
 		print_crlf(vm);
 		print_cstring(vm, "BREAK");
 		print_crlf(vm);
 		direct_mode(vm, 0);
-		vm->break_received = 0;
 		return true;
 	}
 	return false;
@@ -4079,7 +4083,7 @@ static opc_impl_func_t opc_impls[OPC___COUNT] = {
 /*********** Interface routines **********/
 
 const char tbvm_name_string[] = "Jason's Tiny-ish BASIC";
-const char tbvm_version_string[] = "0.4";
+const char tbvm_version_string[] = "0.5";
 
 const char *
 tbvm_name(void)
@@ -4182,12 +4186,6 @@ tbvm_exec(tbvm *vm)
 	}
 
 	tbvm_runprog(vm);
-}
-
-void
-tbvm_break(tbvm *vm)
-{
-	vm->break_received = 1;
 }
 
 void

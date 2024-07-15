@@ -39,10 +39,12 @@
 
 static tbvm	*vm;
 
+static sig_atomic_t received_sigint;
+
 static void
 sigint_handler(int sig)
 {
-	tbvm_break(vm);
+	received_sigint = 1;
 }
 
 static void
@@ -129,11 +131,28 @@ jttb_putchar(void *vctx, void *vf, int ch)
 	fputc(ch, fp);
 }
 
+static bool
+jttb_check_break(void *vctx, void *vf)
+{
+	bool rv = false;
+
+	if (vf == TBVM_FILE_CONSOLE) {
+		/* XXX Not atomic. */
+		if (received_sigint) {
+			received_sigint = 0;
+			rv = true;
+		}
+	}
+
+	return rv;
+}
+
 static const struct tbvm_file_io jttb_file_io = {
 	.io_openfile = jttb_openfile,
 	.io_closefile = jttb_closefile,
 	.io_getchar = jttb_getchar,
 	.io_putchar = jttb_putchar,
+	.io_check_break = jttb_check_break,
 };
 
 static bool
