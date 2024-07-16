@@ -35,6 +35,11 @@
 #include <signal.h>
 #include <time.h>
 
+#ifndef __vax__
+#include <fenv.h>
+#pragma STDC FENV_ACCESS ON
+#endif /* __vax__ */
+
 #include "../tbvm/tbvm.h"
 
 static tbvm	*vm;
@@ -181,6 +186,20 @@ jttb_math_exc(void *vctx)
 {
 	int exc = (int)fp_exceptions;
 	fp_exceptions = 0;
+
+#ifndef __vax__
+	int fpexc =
+	    fetestexcept(FE_UNDERFLOW|FE_OVERFLOW|FE_DIVBYZERO|FE_INVALID);
+
+	if (fpexc) {
+		if (fpexc & FE_DIVBYZERO) {
+			exc |= TBVM_EXC_DIV0;
+		} else if (fpexc & (FE_UNDERFLOW|FE_OVERFLOW|FE_INVALID)) {
+			exc |= TBVM_EXC_ARITH;
+		}
+		feclearexcept(FE_ALL_EXCEPT);
+	}
+#endif /* __vax__ */
 
 	return exc;
 }

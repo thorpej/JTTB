@@ -39,19 +39,16 @@
 #include <assert.h>
 #include <ctype.h>
 #include <errno.h>
-#ifndef TBVM_CONFIG_INTEGER_ONLY
-#ifndef __vax__
-#include <fenv.h>
-#pragma STDC FENV_ACCESS ON
-#endif /* __vax__ */
-#include <math.h>
-#endif /* ! TBVM_CONFIG_INTEGER_ONLY */
 #include <limits.h>
 #include <setjmp.h>
 #include <stdbool.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+
+#ifndef TBVM_CONFIG_INTEGER_ONLY
+#include <math.h>
+#endif /* ! TBVM_CONFIG_INTEGER_ONLY */
 
 #include "tbvm.h"
 #include "tbvm_opcodes.h"
@@ -861,45 +858,10 @@ tbvm_strtonum(const char *cp, char **endptr, tbvm_number *valp)
 	return true;
 }
 
-/*
- * On VAX, we don't have <fenv.h> (which is a very IEEE754-oriented header).
- * We are thus relying on the driver program to catch the exception and report
- * them to us as TBVM_EXC_* bits.
- */
-
-static int
-get_exceptions(tbvm *vm)
-{
-#ifndef __vax__
-	int fpexc =
-	    fetestexcept(FE_UNDERFLOW|FE_OVERFLOW|FE_DIVBYZERO|FE_INVALID);
-#endif
-	int vmexc = vm_io_math_exc(vm);
-
-	if (
-#ifndef __vax__
-	    fpexc == 0 &&
-#endif
-	    vmexc == 0) {
-		return 0;
-	}
-
-#ifndef __vax__
-	feclearexcept(FE_ALL_EXCEPT);
-
-	if (fpexc & FE_DIVBYZERO) {
-		vmexc |= TBVM_EXC_DIV0;
-	} else if (fpexc & (FE_UNDERFLOW|FE_OVERFLOW|FE_INVALID)) {
-		vmexc |= TBVM_EXC_ARITH;
-	}
-#endif
-	return vmexc;
-}
-
 static void
 check_math_error(tbvm *vm)
 {
-	int exc = get_exceptions(vm);
+	int exc = vm_io_math_exc(vm);
 
 	if (exc == 0) {
 		return;
@@ -4157,7 +4119,7 @@ tbvm_runprog(tbvm *vm)
 	}
 
 #ifndef TBVM_CONFIG_INTEGER_ONLY
-	(void) get_exceptions(vm);	/* clear any pending exceptions */
+	(void) vm_io_math_exc(vm);	/* clear any pending exceptions */
 #endif /* TBVM_CONFIG_INTEGER_ONLY */
 
 	while (vm->vm_run) {
