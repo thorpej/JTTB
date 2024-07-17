@@ -146,6 +146,7 @@ jttb_getchar(void *vctx, void *vf)
 		return TBVM_BREAK;
 	}
 
+ again:
 	flockfile(fp);
 	cnintr_check = fp == stdin;
 	rv = getc_unlocked(fp);
@@ -153,7 +154,16 @@ jttb_getchar(void *vctx, void *vf)
 	funlockfile(fp);
 	if (rv == EOF) {
 		if (ferror(fp)) {
-			if (fp != stdin) {
+			if (fp == stdin) {
+				if (errno == EINTR) {
+					/*
+					 * If we were interrupted by a
+					 * signal (e.g. SIGTSTP), then
+					 * we'll go ahead and restart.
+					 */
+					goto again;
+				}
+			} else {
 				/* XXX report I/O error? */
 			}
 			clearerr(fp);
