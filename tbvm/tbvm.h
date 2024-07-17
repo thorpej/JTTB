@@ -50,6 +50,8 @@ void	tbvm_set_prog(tbvm *, const char *, size_t);
 
 #define	TBVM_FILE_CONSOLE	((void *)-1)
 
+#define	TBVM_BREAK		(EOF - 0x200)
+
 struct tbvm_file_io {
 	void *	(*io_openfile)(void *, const char *, const char *);
 	void	(*io_closefile)(void *, void *);

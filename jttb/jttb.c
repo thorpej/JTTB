@@ -30,10 +30,14 @@
  * http://www.ittybittycomputers.com/IttyBitty/TinyBasic/DDJ1/Design.html
  */
 
+#include <errno.h>
+#include <setjmp.h>
 #include <stdbool.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <signal.h>
 #include <time.h>
+#include <unistd.h>
 
 #ifndef __vax__
 #include <fenv.h>
@@ -45,10 +49,15 @@
 static tbvm	*vm;
 
 static sig_atomic_t received_sigint;
+static sig_atomic_t cnintr_check;
+static jmp_buf cnintr_env;
 
 static void
 sigint_handler(int sig)
 {
+	if (cnintr_check) {
+		longjmp(cnintr_env, 1);
+	}
 	received_sigint = 1;
 }
 
@@ -129,8 +138,28 @@ static int
 jttb_getchar(void *vctx, void *vf)
 {
 	FILE *fp = (vf == TBVM_FILE_CONSOLE) ? stdin : vf;
+	int rv;
 
-	return fgetc(fp);
+	if (fp == stdin && setjmp(cnintr_env)) {
+		cnintr_check = 0;
+		funlockfile(fp);
+		return TBVM_BREAK;
+	}
+
+	flockfile(fp);
+	cnintr_check = fp == stdin;
+	rv = getc_unlocked(fp);
+	cnintr_check = 0;
+	funlockfile(fp);
+	if (rv == EOF) {
+		if (ferror(fp)) {
+			if (fp != stdin) {
+				/* XXX report I/O error? */
+			}
+			clearerr(fp);
+		}
+	}
+	return rv;
 }
 
 static void
@@ -212,9 +241,20 @@ int
 main(int argc, char *argv[])
 {
 	struct sigaction sa;
+	sigset_t nset;
 
 	printf("%s, version %s\n", tbvm_name(), tbvm_version());
 
+	/*
+	 * We rely on SIGINT working properly in order to perform
+	 * console BREAK processing.  Unfortunately, some shells
+	 * seem to sometimes mask SIGINT?
+	 */
+	sigemptyset(&nset);
+	sigaddset(&nset, SIGINT);
+	if (sigprocmask(SIG_UNBLOCK, &nset, NULL) != 0) {
+		abort();
+	}
 	signal(SIGINT, sigint_handler);
 
 	sa.sa_sigaction = sigfpe_action;

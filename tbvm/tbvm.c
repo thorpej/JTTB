@@ -1595,14 +1595,30 @@ init_vm(tbvm *vm)
 	vm->rand_seed = 1;
 }
 
+static void
+process_break(tbvm *vm)
+{
+	print_crlf(vm);
+	print_cstring(vm, "BREAK");
+	print_crlf(vm);
+	direct_mode(vm, 0);
+}
+
 static bool
 check_break(tbvm *vm)
 {
 	if (vm_io_check_break(vm)) {
-		print_crlf(vm);
-		print_cstring(vm, "BREAK");
-		print_crlf(vm);
-		direct_mode(vm, 0);
+		process_break(vm);
+		return true;
+	}
+	return false;
+}
+
+static bool
+check_input_break(tbvm *vm, int ch)
+{
+	if (ch == TBVM_BREAK) {
+		process_break(vm);
 		return true;
 	}
 	return false;
@@ -2333,11 +2349,10 @@ IMPL(INNUM)
  get_input:
 	print_cstring(vm, "? ");
 	for (ptr = 0;;) {
-		if (check_break(vm)) {
-			direct_mode(vm, 0);
+		ch = vm_cons_getchar(vm);
+		if (check_input_break(vm, ch)) {
 			return;
 		}
-		ch = vm_cons_getchar(vm);
 		if (check_input_disconnected(vm, ch)) {
 			return;
 		}
@@ -2380,11 +2395,10 @@ IMPL(INVAR)
 		vm_cons_putchar(vm, ' ');
 	}
 	for (ptr = 0;;) {
-		if (check_break(vm)) {
-			direct_mode(vm, 0);
+		ch = vm_cons_getchar(vm);
+		if (check_input_break(vm, ch)) {
 			return;
 		}
-		ch = vm_cons_getchar(vm);
 		if (check_input_disconnected(vm, ch)) {
 			return;
 		}
@@ -2822,10 +2836,11 @@ IMPL(GETLINE)
 	vm->suppress_prompt = false;
 
 	for (;;) {
-		if (check_break(vm)) {
-			vm->lbuf_ptr = 0;
-		}
 		ch = vm_cons_getchar(vm);
+		if (check_input_break(vm, ch)) {
+			vm->lbuf_ptr = 0;
+			ch = END_OF_LINE;
+		}
 		if (check_input_disconnected(vm, ch)) {
 			if (vm->cons_file == vm->prog_file) {
 				/* Finished loading a program. */
