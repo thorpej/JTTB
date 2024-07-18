@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.12)
 
-include(${PROJECT_SOURCE_DIR}/tbasm/tbasm.cmake)
+include(${CMAKE_CURRENT_SOURCE_DIR}/../tbasm/tbasm.cmake)
 
 add_custom_command(
 	OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/tbvm_program.h
