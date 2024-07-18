@@ -1008,7 +1008,7 @@ main(int argc, char *argv[])
 	argv += optind;
 	argc -= optind;
 
-	if (argc < 1) {
+	if (argc != 1) {
 		usage();
 	}
 	infname = argv[0];
