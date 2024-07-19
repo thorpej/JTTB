@@ -6,8 +6,6 @@ if (NOT Tbasm_FOUND)
 	find_package(Tbasm REQUIRED)
 endif()
 
-#include(${CMAKE_CURRENT_SOURCE_DIR}/../tbasm/tbasm.cmake)
-
 add_custom_command(
 	OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/tbvm_program.h
 	COMMAND ${Tbasm_EXECUTABLE} -H${CMAKE_CURRENT_BINARY_DIR}/tbvm_program.h ${CMAKE_CURRENT_SOURCE_DIR}/tbvm_program.asm
