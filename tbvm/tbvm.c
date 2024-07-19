@@ -266,7 +266,7 @@ vm_io_math_exc(tbvm *vm)
 	if (vm->exc_io != NULL) {
 		return (*vm->exc_io->io_math_exc)(vm->context);
 	}
-	return 0;
+	return -1;
 }
 
 /*********** String routines **********/
@@ -827,7 +827,7 @@ tbvm_strtonum(const char *cp, char **endptr, tbvm_number *valp)
 	return true;
 }
 
-#define	check_math_error(vm)		/* nothing */
+#define	check_math_error(vm, val)	/* nothing */
 
 #else /* ! TBVM_CONFIG_INTEGER_ONLY */
 
@@ -835,8 +835,25 @@ tbvm_strtonum(const char *cp, char **endptr, tbvm_number *valp)
 #define	tbvm_floor(vm, num)		floor(num)
 #define	tbvm_abs(vm, num)		fabs(num)
 #define	tbvm_pow(vm, num1, num2)	pow((num1), (num2))
-#define	tbvm_div(vm, num1, num2)	((num1) / (num2))
-#define	tbvm_mod(vm, num1, num2)	fmod((num1), (num2))
+
+static tbvm_number
+tbvm_div(tbvm *vm, tbvm_number num1, tbvm_number num2)
+{
+	if (fpclassify(num2) == FP_ZERO) {
+		basic_div0_error(vm);
+	}
+	return num1 / num2;
+}
+
+static tbvm_number
+tbvm_mod(tbvm *vm, tbvm_number num1, tbvm_number num2)
+{
+	if (fpclassify(num2) == FP_ZERO) {
+		basic_div0_error(vm);
+	}
+	return fmod(num1, num2);
+}
+
 #define	tbvm_atan(vm, num)		atan(num)
 #define	tbvm_cos(vm, num)		cos(num)
 #define	tbvm_sin(vm, num)		sin(num)
@@ -859,12 +876,20 @@ tbvm_strtonum(const char *cp, char **endptr, tbvm_number *valp)
 }
 
 static void
-check_math_error(tbvm *vm)
+check_math_error(tbvm *vm, tbvm_number val)
 {
 	int exc = vm_io_math_exc(vm);
 
 	if (exc == 0) {
 		return;
+	}
+
+	if (exc == -1) {
+		/* Can't detect exceptions; base it on value. */
+		int c = fpclassify(val);
+		if (c == FP_INFINITE || c == FP_NAN) {
+			basic_math_error(vm);
+		}
 	}
 
 	if (exc & TBVM_EXC_DIV0) {
@@ -2455,6 +2480,7 @@ IMPL(ERR)
 IMPL(ADD)
 {
 	struct value val1, val2;
+	tbvm_number res;
 
 	aestk_pop_value(vm, VALUE_TYPE_ANY, &val2);
 	aestk_pop_value(vm, VALUE_TYPE_ANY, &val1);
@@ -2466,8 +2492,9 @@ IMPL(ADD)
 
 	switch (val1.type) {
 	case VALUE_TYPE_NUMBER:
-		aestk_push_number(vm, val1.number + val2.number);
-		check_math_error(vm);
+		res = val1.number + val2.number;
+		aestk_push_number(vm, res);
+		check_math_error(vm, res);
 		break;
 
 	case VALUE_TYPE_STRING:
@@ -2488,8 +2515,9 @@ IMPL(SUB)
 {
 	tbvm_number num2 = aestk_pop_number(vm);
 	tbvm_number num1 = aestk_pop_number(vm);
-	aestk_push_number(vm, num1 - num2);
-	check_math_error(vm);
+	tbvm_number val = num1 - num2;
+	aestk_push_number(vm, val);
+	check_math_error(vm, val);
 }
 
 /*
@@ -2497,8 +2525,9 @@ IMPL(SUB)
  */
 IMPL(NEG)
 {
-	aestk_push_number(vm, -aestk_pop_number(vm));
-	check_math_error(vm);
+	tbvm_number val = -aestk_pop_number(vm);
+	aestk_push_number(vm, val);
+	check_math_error(vm, val);
 }
 
 /*
@@ -2508,8 +2537,9 @@ IMPL(MUL)
 {
 	tbvm_number num2 = aestk_pop_number(vm);
 	tbvm_number num1 = aestk_pop_number(vm);
-	aestk_push_number(vm, num1 * num2);
-	check_math_error(vm);
+	tbvm_number val = num1 * num2;
+	aestk_push_number(vm, val);
+	check_math_error(vm, val);
 }
 
 /*
@@ -2519,8 +2549,9 @@ IMPL(POW)
 {
 	tbvm_number num2 = aestk_pop_number(vm);
 	tbvm_number num1 = aestk_pop_number(vm);
-	aestk_push_number(vm, tbvm_pow(vm, num1, num2));
-	check_math_error(vm);
+	tbvm_number val = tbvm_pow(vm, num1, num2);
+	aestk_push_number(vm, val);
+	check_math_error(vm, val);
 }
 
 /*
@@ -2530,8 +2561,9 @@ IMPL(DIV)
 {
 	tbvm_number num2 = aestk_pop_number(vm);
 	tbvm_number num1 = aestk_pop_number(vm);
-	aestk_push_number(vm, tbvm_div(vm, num1, num2));
-	check_math_error(vm);
+	tbvm_number val = tbvm_div(vm, num1, num2);
+	aestk_push_number(vm, val);
+	check_math_error(vm, val);
 }
 
 /*
@@ -3116,6 +3148,7 @@ IMPL(NXTFOR)
 		var = subr.var;
 	}
 	newval = var_get_number(vm, var) + subr.step;
+	check_math_error(vm, newval);
 
 	if (subr.step < 0) {
 		if (newval < subr.end_val) {
@@ -3126,7 +3159,6 @@ IMPL(NXTFOR)
 			done = true;
 		}
 	}
-	check_math_error(vm);
 
 	if (done) {
 		next_statement(vm);
@@ -3394,7 +3426,7 @@ IMPL(FIX)
 		val = tbvm_ceil(vm, val);
 	}
 	aestk_push_number(vm, val);
-	check_math_error(vm);
+	check_math_error(vm, val);
 }
 
 /*
@@ -3404,7 +3436,7 @@ IMPL(FLR)
 {
 	tbvm_number val = tbvm_floor(vm, aestk_pop_number(vm));
 	aestk_push_number(vm, val);
-	check_math_error(vm);
+	check_math_error(vm, val);
 }
 
 /*
@@ -3414,7 +3446,7 @@ IMPL(CEIL)
 {
 	tbvm_number val = tbvm_ceil(vm, aestk_pop_number(vm));
 	aestk_push_number(vm, val);
-	check_math_error(vm);
+	check_math_error(vm, val);
 }
 
 /*
@@ -3443,8 +3475,9 @@ IMPL(SGN)
  */
 IMPL(ATN)
 {
-	aestk_push_number(vm, tbvm_atan(vm, aestk_pop_number(vm)));
-	check_math_error(vm);
+	tbvm_number val = tbvm_atan(vm, aestk_pop_number(vm));
+	aestk_push_number(vm, val);
+	check_math_error(vm, val);
 }
 
 /*
@@ -3453,8 +3486,9 @@ IMPL(ATN)
  */
 IMPL(COS)
 {
-	aestk_push_number(vm, tbvm_cos(vm, aestk_pop_number(vm)));
-	check_math_error(vm);
+	tbvm_number val = tbvm_cos(vm, aestk_pop_number(vm));
+	aestk_push_number(vm, val);
+	check_math_error(vm, val);
 }
 
 /*
@@ -3463,8 +3497,9 @@ IMPL(COS)
  */
 IMPL(SIN)
 {
-	aestk_push_number(vm, tbvm_sin(vm, aestk_pop_number(vm)));
-	check_math_error(vm);
+	tbvm_number val = tbvm_sin(vm, aestk_pop_number(vm));
+	aestk_push_number(vm, val);
+	check_math_error(vm, val);
 }
 
 /*
@@ -3473,8 +3508,9 @@ IMPL(SIN)
  */
 IMPL(TAN)
 {
-	aestk_push_number(vm, tbvm_tan(vm, aestk_pop_number(vm)));
-	check_math_error(vm);
+	tbvm_number val = tbvm_tan(vm, aestk_pop_number(vm));
+	aestk_push_number(vm, val);
+	check_math_error(vm, val);
 }
 
 /*
@@ -3502,8 +3538,9 @@ IMPL(DEGRAD)
  */
 IMPL(EXP)
 {
-	aestk_push_number(vm, tbvm_exp(vm, aestk_pop_number(vm)));
-	check_math_error(vm);
+	tbvm_number val = tbvm_exp(vm, aestk_pop_number(vm));
+	aestk_push_number(vm, val);
+	check_math_error(vm, val);
 }
 
 /*
@@ -3512,8 +3549,9 @@ IMPL(EXP)
  */
 IMPL(LOG)
 {
-	aestk_push_number(vm, tbvm_log(vm, aestk_pop_number(vm)));
-	check_math_error(vm);
+	tbvm_number val = tbvm_log(vm, aestk_pop_number(vm));
+	aestk_push_number(vm, val);
+	check_math_error(vm, val);
 }
 
 /*
@@ -3522,8 +3560,9 @@ IMPL(LOG)
  */
 IMPL(SQR)
 {
-	aestk_push_number(vm, tbvm_sqrt(vm, aestk_pop_number(vm)));
-	check_math_error(vm);
+	tbvm_number val = tbvm_sqrt(vm, aestk_pop_number(vm));
+	aestk_push_number(vm, val);
+	check_math_error(vm, val);
 }
 
 /*
