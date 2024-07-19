@@ -1,11 +1,16 @@
-cmake_minimum_required(VERSION 3.12)
+cmake_minimum_required(VERSION 3.17)
 
-include(${CMAKE_CURRENT_SOURCE_DIR}/../tbasm/tbasm.cmake)
+if (NOT Tbasm_FOUND)
+	set(TBASM_SOURCE_DIR ${CMAKE_CURRENT_LIST_DIR}/../tbasm)
+	set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${TBASM_SOURCE_DIR})
+	find_package(Tbasm REQUIRED)
+endif()
+
+#include(${CMAKE_CURRENT_SOURCE_DIR}/../tbasm/tbasm.cmake)
 
 add_custom_command(
 	OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/tbvm_program.h
-	COMMAND tbasm -H${CMAKE_CURRENT_BINARY_DIR}/tbvm_program.h ${CMAKE_CURRENT_SOURCE_DIR}/tbvm_program.asm
-	DEPENDS tbasm
+	COMMAND ${Tbasm_EXECUTABLE} -H${CMAKE_CURRENT_BINARY_DIR}/tbvm_program.h ${CMAKE_CURRENT_SOURCE_DIR}/tbvm_program.asm
 	)
 
 add_library(tbvm STATIC
