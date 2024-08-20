@@ -4097,7 +4097,7 @@ static opc_impl_func_t opc_impls[OPC___COUNT] = {
 /*********** Interface routines **********/
 
 const char tbvm_name_string[] = "Jason's Tiny-ish BASIC";
-const char tbvm_version_string[] = "0.5";
+const char tbvm_version_string[] = "0.5.1";
 
 const char *
 tbvm_name(void)
