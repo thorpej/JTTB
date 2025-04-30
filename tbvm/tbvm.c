@@ -56,12 +56,8 @@
 
 #define	DOES_NOT_RETURN	__attribute__((__noreturn__))
 
-#define	NUM_NVARS	26	/* A - Z */
-#define	NUM_SVARS	26	/* A$ - Z$ */
-#define	NUM_VARS	(NUM_NVARS + NUM_SVARS)
-#define	SVAR_BASE	NUM_NVARS
 #define	SIZE_CSTK	64		/* control stack size */
-#define	SIZE_SBRSTK	(64+NUM_NVARS)	/* subroutine stack size */
+#define	SIZE_SBRSTK	(64+32)		/* subroutine stack size */
 #define	SIZE_AESTK	64		/* expression stack size */
 #define	SIZE_LBUF	256
 
@@ -80,10 +76,11 @@ typedef	int		tbvm_number;
 typedef	double		tbvm_number;
 #endif
 
-typedef struct value	*var_ref;
+typedef struct variable	*var_ref;
+typedef struct value *val_ref;
 
 struct subr {
-	var_ref var;
+	val_ref var;
 	int lineno;
 	int lbuf_ptr;
 	tbvm_number start_val;
@@ -91,8 +88,8 @@ struct subr {
 	tbvm_number step;
 };
 
-#define	SUBR_VAR_ANYVAR		((var_ref)-2)
-#define	SUBR_VAR_SUBROUTINE	((var_ref)-1)
+#define	SUBR_VAR_ANYVAR		((val_ref)-2)
+#define	SUBR_VAR_SUBROUTINE	((val_ref)-1)
 
 typedef struct string {
 	unsigned int refs;
@@ -108,12 +105,14 @@ struct value {
 		tbvm_number	number;
 		string *	string;
 		var_ref		var_ref;
+		val_ref		val_ref;
 	};
 };
 #define	VALUE_TYPE_ANY		0
 #define	VALUE_TYPE_NUMBER	1	/* number field */
 #define	VALUE_TYPE_STRING	2	/* string field */
 #define	VALUE_TYPE_VARREF	10	/* var_ref field */
+#define	VALUE_TYPE_VALREF	11	/* val_ref field */
 
 struct array_dim {
 	int	nelem;		/* number of elements in this dimension */
@@ -125,6 +124,15 @@ struct array {
 	int totelem;		/* total number of elements */
 	struct value *elem;	/* the array elements themselves */
 	struct array_dim dims[];/* array dimension info */
+};
+
+#define	VAR_MAX_ID_LEN		8
+
+struct variable {
+	struct variable *	next;
+	char			id[VAR_MAX_ID_LEN];
+	struct value		value;
+	struct array *		array;
 };
 
 static size_t
@@ -173,8 +181,7 @@ struct tbvm {
 
 	unsigned int	rand_seed;
 
-	struct value	vars[NUM_VARS];
-	struct array	*array_vars[NUM_VARS];
+	struct variable	*variables;
 
 	char		direct_lbuf[SIZE_LBUF];
 	char		tmp_buf[SIZE_LBUF];
@@ -937,6 +944,7 @@ value_valid_p(tbvm *vm, const struct value *value)
 
 	switch (value->type) {
 	case VALUE_TYPE_NUMBER:
+	case VALUE_TYPE_VALREF:
 	case VALUE_TYPE_VARREF:
 		break;
 
@@ -965,7 +973,7 @@ value_retain(tbvm *vm, struct value *value)
 }
 
 static void
-value_init(tbvm *vm, var_ref slot, int type)
+value_init(tbvm *vm, val_ref slot, int type)
 {
 	switch ((slot->type = type)) {
 	case VALUE_TYPE_NUMBER:
@@ -1089,7 +1097,7 @@ sbrstk_peek_top(tbvm *vm)
 }
 
 static bool
-sbrstk_pop(tbvm *vm, var_ref var, struct subr *subrp, bool pop_match)
+sbrstk_pop(tbvm *vm, val_ref var, struct subr *subrp, bool pop_match)
 {
 	int slot;
 
@@ -1219,25 +1227,47 @@ aestk_push_varref(tbvm *vm, var_ref var)
 	aestk_push_value(vm, &value);
 }
 
-static var_ref
-aestk_pop_varref(tbvm *vm)
+/* varrefs are never popped directly. */
+
+static void
+aestk_push_valref(tbvm *vm, val_ref val)
+{
+	struct value value = {
+		.type = VALUE_TYPE_VALREF,
+		.val_ref = val,
+	};
+	aestk_push_value(vm, &value);
+}
+
+static val_ref
+aestk_pop_valref(tbvm *vm)
 {
 	struct value value;
 
-	aestk_pop_value(vm, VALUE_TYPE_VARREF, &value);
-	return value.var_ref;
+	aestk_pop_value(vm, VALUE_TYPE_ANY, &value);
+
+	switch (value.type) {
+	case VALUE_TYPE_VARREF:
+		return &value.var_ref->value;
+
+	case VALUE_TYPE_VALREF:
+		return value.val_ref;
+
+	default:
+		basic_wrong_type_error(vm);
+	}
 }
 
 /*********** Variable routines **********/
 
 static void
-var_release_array(tbvm *vm, int vidx)
+var_release_array(tbvm *vm, var_ref var)
 {
 	struct array *array;
 	int i;
 
-	if ((array = vm->array_vars[vidx]) != NULL) {
-		vm->array_vars[vidx] = NULL;
+	if ((array = var->array) != NULL) {
+		var->array = NULL;
 		for (i = 0; i < array->totelem; i++) {
 			value_release(vm, &array->elem[i]);
 		}
@@ -1249,82 +1279,98 @@ var_release_array(tbvm *vm, int vidx)
 static void
 var_init(tbvm *vm)
 {
-	int i;
+	var_ref var;
 
-	for (i = 0; i < SVAR_BASE; i++) {
-		value_release_and_init(vm, &vm->vars[i], VALUE_TYPE_NUMBER);
-		var_release_array(vm, i);
-	}
-	for (; i < NUM_VARS; i++) {
-		value_release_and_init(vm, &vm->vars[i], VALUE_TYPE_STRING);
-		var_release_array(vm, i);
+	while ((var = vm->variables) != NULL) {
+		vm->variables = var->next;
+		var_release_array(vm, var);
+		free(var);
 	}
 }
 
-static int
-var_raw_index(tbvm *vm, var_ref var, int *typep)
+static bool
+var_id_match(var_ref var, const char *id, size_t idlen)
 {
-	int idx;
+	size_t i;
 
-	if (var < &vm->vars[0] || var >= &vm->vars[NUM_VARS]) {
-		vm_abort(vm, "!BAD VAR ADDRESS");
+	/* Already clamped. */
+	assert(idlen <= VAR_MAX_ID_LEN);
+
+	for (i = 0; i < idlen; i++) {
+		/*
+		 * This will also catch identifiers longer than the
+		 * var's identifier.
+		 */
+		if (var->id[i] != id[i]) {
+			return false;
+		}
 	}
-	idx = var - &vm->vars[0];
-	*typep = idx >= SVAR_BASE ? VALUE_TYPE_STRING : VALUE_TYPE_NUMBER;
-	return idx;
+	return (i == VAR_MAX_ID_LEN || var->id[i] == '\0');
 }
 
 static var_ref
-var_make_ref(tbvm *vm, int type, int idx)
+var_make_ref(tbvm *vm, int type, const char *id, size_t idlen)
 {
+	var_ref var;
+
 	switch (type) {
 	case VALUE_TYPE_NUMBER:
-		if (idx < 0 || idx >= NUM_NVARS) {
-			vm_abort(vm, "!INVALID NUMBER VAR INDEX");
-		}
-		break;
-
 	case VALUE_TYPE_STRING:
-		if (idx < 0 || idx >= NUM_SVARS) {
-			vm_abort(vm, "!INVALID STRING VAR INDEX");
-		}
-		idx += SVAR_BASE;
 		break;
 
 	default:
 		vm_abort(vm, "!INVALID VARIABLE TYPE");
 	}
-	return &vm->vars[idx];
+
+	if (idlen > VAR_MAX_ID_LEN) {
+		idlen = VAR_MAX_ID_LEN;
+	}
+
+	for (var = vm->variables; var != NULL; var = var->next) {
+		if (var_id_match(var, id, idlen) &&
+		    var->value.type == type) {
+			return var;
+		}
+	}
+
+	var = calloc(1, sizeof(*var));
+	memcpy(var->id, id, idlen);
+	value_init(vm, &var->value, type);
+
+	var->next = vm->variables;
+	vm->variables = var;
+
+	return var;
 }
 
 static int
-var_type(tbvm *vm, var_ref var)
+var_type(tbvm *vm, val_ref val)
 {
-	return var->type;
+	return val->type;
 }
 
 static tbvm_number
-var_get_number(tbvm *vm, var_ref var)
+var_get_number(tbvm *vm, val_ref val)
 {
-	if (var->type != VALUE_TYPE_NUMBER) {
+	if (val->type != VALUE_TYPE_NUMBER) {
 		return 0;
 	}
-	return var->number;
+	return val->number;
 }
 
 static void
-var_set_number(tbvm *vm, var_ref var, tbvm_number val)
+var_set_number(tbvm *vm, val_ref val, tbvm_number num)
 {
-	if (var->type != VALUE_TYPE_NUMBER) {
+	if (val->type != VALUE_TYPE_NUMBER) {
 		basic_wrong_type_error(vm);
 	}
-	var->number = val;
+	val->number = num;
 }
 
 static void
-var_get_value(tbvm *vm, var_ref var, struct value *valp)
+var_get_value(tbvm *vm, val_ref val, struct value *valp)
 {
-	switch (var->type) {
+	switch (val->type) {
 	case VALUE_TYPE_NUMBER:
 	case VALUE_TYPE_STRING:
 		break;
@@ -1332,18 +1378,18 @@ var_get_value(tbvm *vm, var_ref var, struct value *valp)
 	default:
 		vm_abort(vm, "!UNINITIALIZED VARIABLE");
 	}
-	*valp = *var;
+	*valp = *val;
 }
 
 static void
-var_set_value(tbvm *vm, var_ref var, struct value *valp)
+var_set_value(tbvm *vm, val_ref val, struct value *valp)
 {
-	if (valp->type != var->type) {
+	if (valp->type != val->type) {
 		basic_wrong_type_error(vm);
 	}
-	value_release(vm, var);
+	value_release(vm, val);
 	value_retain(vm, valp);
-	*var = *valp;
+	*val = *valp;
 }
 
 /*********** Default I/O routines **********/
@@ -2408,7 +2454,7 @@ IMPL(INVAR)
 {
 	struct value value;
 	char * const startc = vm->tmp_buf;
-	var_ref var = aestk_pop_varref(vm);
+	val_ref val = aestk_pop_valref(vm);
 	int pcount = number_to_int(vm, aestk_pop_number(vm));
 	int ch, ptr;
 
@@ -2436,7 +2482,7 @@ IMPL(INVAR)
 		startc[ptr++] = (char)ch;
 	}
 
-	if (var_type(vm, var) == VALUE_TYPE_STRING) {
+	if (var_type(vm, val) == VALUE_TYPE_STRING) {
 		if (! get_input_string(vm, startc, &value.string)) {
 			input_needs_redo(vm);
 			goto get_input;
@@ -2449,7 +2495,7 @@ IMPL(INVAR)
 		}
 		value.type = VALUE_TYPE_NUMBER;
 	}
-	var_set_value(vm, var, &value);
+	var_set_value(vm, val, &value);
 	aestk_push_number(vm, int_to_number(vm, pcount));
 }
 
@@ -2584,12 +2630,12 @@ IMPL(MOD)
 IMPL(STORE)
 {
 	struct value value;
-	var_ref var;
+	val_ref val;
 
 	aestk_pop_value(vm, VALUE_TYPE_ANY, &value);
-	var = aestk_pop_varref(vm);
+	val = aestk_pop_valref(vm);
 
-	var_set_value(vm, var, &value);
+	var_set_value(vm, val, &value);
 }
 
 /*
@@ -2599,7 +2645,7 @@ IMPL(STORE)
  */
 IMPL(DSTORE)
 {
-	var_ref var = aestk_pop_varref(vm);
+	val_ref val = aestk_pop_valref(vm);
 	char *cp0, *cp1;
 	unsigned dquotes = 0;
 
@@ -2666,10 +2712,10 @@ IMPL(DSTORE)
 	string *string = string_alloc(vm, cp0, cp1 - cp0, vm->lineno);
 
 	/* If we're storing into a numeric var, convert to a number. */
-	if (var_type(vm, var) == VALUE_TYPE_NUMBER) {
+	if (var_type(vm, val) == VALUE_TYPE_NUMBER) {
 		/* XXX Code dupliacated with VAL(). */
 		string = string_terminate(vm, string);
-		tbvm_number val;
+		tbvm_number num;
 		char *cp;
 
 		/*
@@ -2680,24 +2726,24 @@ IMPL(DSTORE)
 			basic_wrong_type_error(vm);
 		}
 
-		if (! tbvm_strtonum(string->str, &cp, &val)) {
+		if (! tbvm_strtonum(string->str, &cp, &num)) {
 			basic_illegal_quantity_error(vm);
 		}
 		if (*cp != '\0') {
 			basic_wrong_type_error(vm);
 		}
-		var_set_number(vm, var, val);
+		var_set_number(vm, val, num);
 	} else {
 		struct value value = {
 			.type = VALUE_TYPE_STRING,
 			.string = string,
 		};
-		var_set_value(vm, var, &value);
+		var_set_value(vm, val, &value);
 	}
 }
 
 /*
- * Test for variable (i.e letter) if present. Place its index value
+ * Test for variable if present. Place a reference to that variable
  * onto the AESTK and continue execution at next suggested location.
  * Otherwise continue at lbl.
  */
@@ -2705,23 +2751,47 @@ IMPL(TSTV)
 {
 	int label = get_label(vm);
 	int type = VALUE_TYPE_NUMBER;
-	int idx;
+	int idx, adv;
 	char c;
 
 	skip_whitespace(vm);
 	c = peek_linebyte(vm, 0);
-	if (c >= 'A' && c <= 'Z') {
-		advance_cursor(vm, 1);
-		idx = c - 'A';
-		c = peek_linebyte(vm, 0);
-		if (c == '$') {
-			advance_cursor(vm, 1);
-			type = VALUE_TYPE_STRING;
-		}
-		aestk_push_varref(vm, var_make_ref(vm, type, idx));
-	} else {
+
+	/* Var identifiers must start with a letter. */
+	if (c < 'A' || c > 'Z') {
 		vm->pc = label;
+		return;
 	}
+
+	/* Find the end of the identifier. */
+	for (idx = 1;; idx++) {
+		c = peek_linebyte(vm, idx);
+		/*
+		 * Letters and numbers are valid after the
+		 * first letter.
+		 */
+		if ((c >= 'A' && c <= 'Z') ||
+		    (c >= '0' && c <= '9')) {
+			continue;
+		}
+		break;
+	}
+
+	/*
+	 * idx now points at the first non-letter/number character, and thus
+	 * contains the length of the identifier.  Look at the next character
+	 * to check for a type qualifier.
+	 */
+	adv = idx;
+	c = peek_linebyte(vm, idx);
+	if (c == '$') {
+		type = VALUE_TYPE_STRING;
+		adv++;
+	}
+
+	aestk_push_varref(vm,
+	    var_make_ref(vm, type, &vm->lbuf[vm->lbuf_ptr], idx));
+	advance_cursor(vm, adv);
 }
 
 static bool
@@ -2812,13 +2882,13 @@ IMPL(TSTN)
 }
 
 /*
- * Replace top of stack by variable value it indexes.
+ * Replace top of stack by variable value it references.
  */
 IMPL(IND)
 {
 	struct value value;
 
-	var_get_value(vm, aestk_pop_varref(vm), &value);
+	var_get_value(vm, aestk_pop_valref(vm), &value);
 	aestk_push_value(vm, &value);
 }
 
@@ -3079,7 +3149,7 @@ IMPL(FOR)
 
 	subr.end_val = aestk_pop_number(vm);
 	subr.start_val = aestk_pop_number(vm);
-	subr.var = aestk_pop_varref(vm);
+	subr.var = aestk_pop_valref(vm);
 	subr.lineno = next_line(vm);	/* XXX doesn't handle compound lines */
 	subr.step = 1;
 
@@ -3121,33 +3191,38 @@ IMPL(STEP)
 IMPL(NXTFOR)
 {
 	struct value value;
-	var_ref var;
+	val_ref val;
 	struct subr subr;
 	tbvm_number newval;
 	bool done = false;
 
 	aestk_pop_value(vm, VALUE_TYPE_ANY, &value);
 
-	if (value.type == VALUE_TYPE_VARREF) {
-		var = value.var_ref;
-	} else if (value.type == VALUE_TYPE_NUMBER) {
-		/*
-		 * Perform NEXT for whichever is the inner-most FOR
-		 * loop.
-		 */
-		var = SUBR_VAR_ANYVAR;
-	} else {
+	switch (value.type) {
+	case VALUE_TYPE_VARREF:
+		val = &value.var_ref->value;
+		break;
+
+	case VALUE_TYPE_VALREF:
+		val = value.val_ref;
+		break;
+
+	case VALUE_TYPE_NUMBER:
+		val = SUBR_VAR_ANYVAR;
+		break;
+
+	default:
 		vm_abort(vm, "!INVALID NXTFOR");
 	}
 
-	if (! sbrstk_pop(vm, var, &subr, false)) {
+	if (! sbrstk_pop(vm, val, &subr, false)) {
 		basic_next_error(vm);
 	}
-	if (var == SUBR_VAR_ANYVAR) {
+	if (val == SUBR_VAR_ANYVAR) {
 		/* Found the inner-most FOR loop; recover the var. */
-		var = subr.var;
+		val = subr.var;
 	}
-	newval = var_get_number(vm, var) + subr.step;
+	newval = var_get_number(vm, val) + subr.step;
 	check_math_error(vm, newval);
 
 	if (subr.step < 0) {
@@ -3162,9 +3237,9 @@ IMPL(NXTFOR)
 
 	if (done) {
 		next_statement(vm);
-		sbrstk_pop(vm, var, &subr, true);
+		sbrstk_pop(vm, val, &subr, true);
 	} else {
-		var_set_number(vm, var, newval);
+		var_set_number(vm, val, newval);
 		set_line(vm, subr.lineno, 0, true);
 	}
 }
@@ -3829,7 +3904,7 @@ IMPL(DIM)
 {
 	var_ref var = NULL;
 	struct value *valp;
-	int i, dim, ndim, vidx, vtype, totelem;
+	int i, dim, ndim, totelem;
 	struct array *array = NULL;
 
 	if (! array_get_dimensions(vm, &ndim, &var)) {
@@ -3837,16 +3912,17 @@ IMPL(DIM)
 	}
 
 	/*
-	 * Because arrays actually exist in a different namespace from
-	 * regular vars, we are only using the var_ref on the stack as
-	 * a name from which we compute the index into the array store.
+	 * In at least some BASIC variants, arrays actually exist in
+	 * a different namespace from regular vars.  In this implementation,
+	 * we hang the array off the var structure, and the non-array
+	 * instance of the var is also allowed to have its own value.
+	 *
 	 * Arrays are only allocated once DIM'd (including the MS BASIC-
 	 * style implicit DIM-on-first-use)
 	 *
 	 * N.B. var is guaranteed to be non-NULL here.
 	 */
-	vidx = var_raw_index(vm, var, &vtype);
-	if (vm->array_vars[vidx] != NULL) {
+	if (var->array != NULL) {
 		basic_redim_error(vm);
 	}
 
@@ -3859,8 +3935,8 @@ IMPL(DIM)
 		array->dims[dim].nelem = number_to_int(vm, valp->number) + 1;
 		totelem *= array->dims[dim].nelem;
 	}
-	alloc_array_elems(vm, array, totelem, vtype);
-	vm->array_vars[vidx] = array;
+	alloc_array_elems(vm, array, totelem, var->value.type);
+	var->array = array;
 
 	/* Now pop the arguments from the expression stack. */
 	aestk_popn(vm, ndim + 1);
@@ -3879,14 +3955,13 @@ IMPL(ARRY)
 	struct array *array;
 	struct value *valp;
 	var_ref var;
-	int i, dim, ndim, totelem, didx, idx, vidx, vtype;
+	int i, dim, ndim, totelem, didx, idx;
 
 	if (! array_get_dimensions(vm, &ndim, &var)) {
 		goto ARRY_abort;
 	}
 
-	vidx = var_raw_index(vm, var, &vtype);
-	if ((array = vm->array_vars[vidx]) == NULL) {
+	if ((array = var->array) == NULL) {
 		/*
 		 * This is the first access of this array.  We'll
 		 * replicate classical MS BASIC behavior and implicitly
@@ -3900,8 +3975,8 @@ IMPL(ARRY)
 			array->dims[dim].nelem = 11;
 			totelem *= array->dims[dim].nelem;
 		}
-		alloc_array_elems(vm, array, totelem, vtype);
-		vm->array_vars[vidx] = array;
+		alloc_array_elems(vm, array, totelem, var->value.type);
+		var->array = array;
 	}
 
 	if (ndim != array->ndim) {
@@ -3929,7 +4004,7 @@ IMPL(ARRY)
 	 * var_ref.
 	 */
 	aestk_popn(vm, ndim + 1);
-	aestk_push_varref(vm, &array->elem[idx]);
+	aestk_push_valref(vm, &array->elem[idx]);
 	return;
 
  ARRY_abort:
@@ -4097,7 +4172,7 @@ static opc_impl_func_t opc_impls[OPC___COUNT] = {
 /*********** Interface routines **********/
 
 const char tbvm_name_string[] = "Jason's Tiny-ish BASIC";
-const char tbvm_version_string[] = "0.5.1";
+const char tbvm_version_string[] = "0.6";
 
 const char *
 tbvm_name(void)
