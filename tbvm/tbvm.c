@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2024 Jason R. Thorpe.
+ * Copyright (c) 2024, 2025 Jason R. Thorpe.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -2784,9 +2784,39 @@ IMPL(TSTV)
 	 */
 	adv = idx;
 	c = peek_linebyte(vm, idx);
-	if (c == '$') {
+	switch (c) {
+	case '$':
 		type = VALUE_TYPE_STRING;
 		adv++;
+		break;
+
+	case '#':
+#ifndef TBVM_CONFIG_INTEGER_ONLY
+		/*
+		 * Number variables default to double-precision in
+		 * this implementation, so silently absorb the
+		 * double-precision qualifier.
+		 */
+		adv++;
+#else
+		basic_wrong_type_error(vm);
+#endif
+		break;
+
+	case '%':
+#ifdef TBVM_CONFIG_INTEGER_ONLY
+		/*
+		 * Number variables are always integers in this
+		 * configuration, so silently absorb the integer
+		 * qualifier.
+		 */
+		adv++;
+#else
+		basic_wrong_type_error(vm);	/* XXX */
+#endif
+
+	default:
+		break;
 	}
 
 	aestk_push_varref(vm,
